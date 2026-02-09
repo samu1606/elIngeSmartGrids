@@ -1,0 +1,28 @@
+# ========================================
+# ElectriPro - Docker Compose Configuration
+# ========================================
+
+services:
+  electripro:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: electripro-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - electripro-network
+
+networks:
+  electripro-network:
+    driver: bridge
