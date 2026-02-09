@@ -13,6 +13,7 @@ import {
   Bell,
   Search
 } from 'lucide-react'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './components/Dashboard'
 import Calculadora from './components/Calculadora'
 import Proyectos from './components/Proyectos'
@@ -21,10 +22,13 @@ import Presupuestos from './components/Presupuestos'
 import Agenda from './components/Agenda'
 import Reportes from './components/Reportes'
 import Landing from './components/Landing'
+import AuthPages from './components/AuthPages'
 
-function App() {
+function AppContent() {
+  const { user, profile, loading, signOut } = useAuth()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [showLanding, setShowLanding] = useState(true)
+  const [showAuth, setShowAuth] = useState(false)
 
   const menuItems = [
     { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
@@ -36,15 +40,68 @@ function App() {
     { id: 'reportes', icon: <BarChart3 size={20} />, label: 'Reportes' },
   ]
 
-  if (showLanding) {
+  // Show loading while checking auth
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner-large"></div>
+        <p>Cargando...</p>
+        <style>{`
+          .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: var(--bg-primary);
+            gap: 20px;
+          }
+          .loading-spinner-large {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(59, 130, 246, 0.2);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    )
+  }
+
+  // Show landing page first
+  if (showLanding && !user) {
     return <Landing onEnter={() => setShowLanding(false)} />
   }
+
+  // Show auth pages if not logged in
+  if (!user) {
+    return (
+      <AuthPages
+        onAuthSuccess={() => {
+          setShowAuth(false)
+          setShowLanding(false)
+        }}
+      />
+    )
+  }
+
+  const handleLogout = async () => {
+    await signOut()
+    setShowLanding(true)
+  }
+
+  const userName = profile?.full_name || user?.email?.split('@')[0] || 'Usuario'
+  const userTier = profile?.subscription_tier === 'professional' ? 'Professional' : 'Starter'
 
   return (
     <>
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="logo-container" onClick={() => setShowLanding(true)} style={{ cursor: 'pointer' }}>
+        <div className="logo-container" onClick={() => setActiveTab('dashboard')} style={{ cursor: 'pointer' }}>
           <div className="logo-icon">
             <Plus size={24} color="#3B82F6" strokeWidth={3} />
           </div>
@@ -70,14 +127,16 @@ function App() {
             <Settings size={20} />
             <span>Configuración</span>
           </button>
-          <button className="nav-item text-red">
+          <button className="nav-item text-red" onClick={handleLogout}>
             <LogOut size={20} />
             <span>Cerrar Sesión</span>
           </button>
 
           <div className="upgrade-card">
-            <p>Plan Gratuito</p>
-            <button className="upgrade-btn">Actualizar</button>
+            <p>Plan {userTier}</p>
+            {userTier === 'Starter' && (
+              <button className="upgrade-btn">Actualizar a Pro</button>
+            )}
           </div>
         </div>
       </aside>
@@ -98,10 +157,10 @@ function App() {
               <Bell size={20} />
             </button>
             <div className="user-profile">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Juan" alt="User" />
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`} alt="User" />
               <div className="user-info">
-                <span className="user-name">Juan Díaz</span>
-                <span className="user-role">Professional</span>
+                <span className="user-name">{userName}</span>
+                <span className="user-role">{userTier}</span>
               </div>
             </div>
           </div>
@@ -320,6 +379,14 @@ function App() {
         }
       `}</style>
     </>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 
