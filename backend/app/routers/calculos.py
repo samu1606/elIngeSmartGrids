@@ -19,6 +19,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from app.services.calculo_seccion import calcular_seccion, buscar_calibre_cobre
 from app.services.calculo_fotovoltaico import calcular_sistema_fotovoltaico
+from app.services.norms_config import get_norm, get_available_countries, NORMS
 from app.services.calculos_electricos import (
     calcular_protecciones,
     calcular_motor,
@@ -38,7 +39,7 @@ class SeccionInput(BaseModel):
     potencia_kw: float = Field(..., gt=0, description="Potencia activa en kW")
     configuracion: str = Field(
         "mono_120",
-        description="Configuración BT colombiana: mono_120, mono_208, mono_240, tri_208, tri_220, tri_440"
+        description="Configuración BT: mono_120, mono_208, mono_240, tri_208, tri_220, tri_440 (CO) / tri_480 (US)"
     )
     factor_potencia: float = Field(0.9, gt=0, le=1, description="Factor de potencia")
     material: str = Field("cu", description="cu (cobre) o al (aluminio)")
@@ -49,6 +50,7 @@ class SeccionInput(BaseModel):
     num_conductores_agrupados: int = Field(0, ge=0, le=20, description="Conductores en ducto (0 = auto desde configuración)")
     temperatura_terminales: int = Field(60, description="Temperatura de terminales: 60 o 75°C (Art. 110-14(c))")
     carga_continua: bool = Field(True, description="Carga continua (>3 horas). Aplica factor 125% (Art. 210-20(A))")
+    country_code: str = Field("CO", description="Country code: CO (Colombia), US (USA/NEC), MX (Mexico)")
 
 
 class SeccionOutput(BaseModel):
@@ -80,6 +82,19 @@ class SeccionOutput(BaseModel):
     alerta_caida: str | None
     justificacion: str
     tabla_referencia: str
+
+
+@router.get("/norms")
+async def endpoint_norms():
+    """Get available electrical norms by country."""
+    return {"norms": get_available_countries()}
+
+
+@router.get("/norms/{country_code}")
+async def endpoint_norm_detail(country_code: str):
+    """Get specific norm configuration by country code."""
+    norm = get_norm(country_code)
+    return {"country": country_code.upper(), "norm": norm}
 
 
 @router.post("/seccion", response_model=SeccionOutput)
