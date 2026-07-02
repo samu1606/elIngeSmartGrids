@@ -1,28 +1,75 @@
-# ========================================
-# ElectriPro - Docker Compose Configuration
-# ========================================
-
+version: "3.8"
 services:
-  electripro:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: electripro-app
-    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - 8005:8000
     environment:
-      - NODE_ENV=production
-      - NEXT_TELEMETRY_DISABLED=1
-    healthcheck:
-      test: [ "CMD", "wget", "-q", "-O", "-", "http://localhost:3000/api/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - SUPABASE_URL=$SUPABASE_URL
+      - SUPABASE_SERVICE_KEY=$SUPABASE_SERVICE_KEY
+      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+    extra_hosts:
+      - host.docker.internal:host-gateway
     networks:
-      - electripro-network
-
+      - default
+      - dokploy-network
+    labels:
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-web.rule=Host(`api.elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-web.entrypoints=web
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-9-web.loadbalancer.server.port=8000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-web.service=elingesmartgrids-stack-6enmwv-9-web
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-web.middlewares=redirect-to-https@file
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-websecure.rule=Host(`api.elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-websecure.entrypoints=websecure
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-9-websecure.loadbalancer.server.port=8000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-websecure.service=elingesmartgrids-stack-6enmwv-9-websecure
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-9-websecure.tls.certresolver=letsencrypt
+      - traefik.enable=true
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - 3005:3000
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+      - NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+      - NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+      - WOMPI_PUBLIC_KEY=$WOMPI_PUBLIC_KEY
+      - WOMPI_PRIVATE_KEY=$WOMPI_PRIVATE_KEY
+      - WOMPI_WEBHOOK_SECRET=$WOMPI_WEBHOOK_SECRET
+    depends_on:
+      - backend
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-web.rule=Host(`www.elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-web.entrypoints=web
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-6-web.loadbalancer.server.port=3000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-web.service=elingesmartgrids-stack-6enmwv-6-web
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-web.middlewares=redirect-to-https@file
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-websecure.rule=Host(`www.elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-websecure.entrypoints=websecure
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-6-websecure.loadbalancer.server.port=3000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-websecure.service=elingesmartgrids-stack-6enmwv-6-websecure
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-6-websecure.tls.certresolver=letsencrypt
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-web.rule=Host(`elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-web.entrypoints=web
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-5-web.loadbalancer.server.port=3000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-web.service=elingesmartgrids-stack-6enmwv-5-web
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-web.middlewares=redirect-to-https@file
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-websecure.rule=Host(`elingesmartgrids.cloud`)
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-websecure.entrypoints=websecure
+      - traefik.http.services.elingesmartgrids-stack-6enmwv-5-websecure.loadbalancer.server.port=3000
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-websecure.service=elingesmartgrids-stack-6enmwv-5-websecure
+      - traefik.http.routers.elingesmartgrids-stack-6enmwv-5-websecure.tls.certresolver=letsencrypt
+      - traefik.enable=true
 networks:
-  electripro-network:
-    driver: bridge
+  dokploy-network:
+    external: true
