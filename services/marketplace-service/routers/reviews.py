@@ -1,87 +1,58 @@
-"""Reviews router — Sistema de reseñas y calificaciones."""
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-from typing import Optional, List
-from shared.supabase_client import get_supabase
+"""Router: Reviews endpoints."""
 
-router = APIRouter()
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+import sys
+from pathlib import Path
 
-class ReviewCreate(BaseModel):
-    job_id: str
-    reviewer_id: str
-    reviewee_id: str
-    rating: int  # 1-5
-    comment: Optional[str] = None
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "shared"))
 
-@router.post("", response_model=dict)
-def create_review(review: ReviewCreate):
-    """Crear una reseña. También actualiza el rating promedio del técnico."""
-    supabase = get_supabase()
-    
-    if not (1 <= review.rating <= 5):
-        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
-    
-    # Check job exists and is completed
-    job_result = supabase.table("jobs").select("*").eq("id", review.job_id).execute()
-    if not job_result.data:
+from shared.supabase_client import SupabaseClient
+from schemas import ReviewCreate, ReviewResponse
+import crud
+
+router = APIRouter(prefix="/reviews", tags=["reviews"])
+
+
+def get_db():
+    from database import get_db as _get_db
+    return _get_db()
+
+
+@router.post("", response_model=ReviewResponse, status_code=201)
+async def create_review(review: ReviewCreate, db: SupabaseClient = Depends(get_db)):
+    """Create a review for a completed job."""
+    job = crud.get_job(db, review.job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Insert review
-    result = supabase.table("reviews").insert(review.dict()).execute()
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Error creating review")
-    
-    # Update technician's average rating
-    all_reviews = supabase.table("reviews").select("rating").eq("reviewee_id", review.reviewee_id).execute()
-    if all_reviews.data:
-        ratings = [r["rating"] for r in all_reviews.data]
-        avg_rating = sum(ratings) / len(ratings)
-        
-        # Find technician by user_id
-        tech_result = supabase.table("technicians").select("*").eq("user_id", review.reviewee_id).execute()
-        if tech_result.data:
-            supabase.table("technicians").update({"rating": round(avg_rating, 2)}).eq(
-                "user_id", review.reviewee_id
-            ).execute()
-    
-    return result.data[0]
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Job must be completed before reviewing")
+    data = review.model_dump(exclude_none=True)
+    result = crud.create_review(db, data)
+    # Update technician rating after review
+    if review.reviewee_id:
+        try:
+            crud.update_technician_rating(db, review.reviewee_id)
+        except Exception:
+            pass  # Rating update is best-effort
+    return result
 
-@router.get("", response_model=List[dict])
-def list_reviews(
-    reviewee_id: Optional[str] = Query(None),
-    job_id: Optional[str] = Query(None),
-    rating: Optional[int] = Query(None),
-    limit: int = Query(50, le=100),
-    offset: int = Query(0),
+
+@router.get("", response_model=list[ReviewResponse])
+async def list_reviews(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    reviewee_id: Optional[str] = None,
+    db: SupabaseClient = Depends(get_db),
 ):
-    """Listar reseñas con filtros opcionales."""
-    supabase = get_supabase()
-    query = supabase.table("reviews").select("*")
-    
-    if reviewee_id:
-        query = query.eq("reviewee_id", reviewee_id)
-    if job_id:
-        query = query.eq("job_id", job_id)
-    if rating:
-        query = query.eq("rating", rating)
-    
-    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
-    return result.data
+    """List reviews with optional reviewee filter."""
+    return crud.get_reviews(db, skip=skip, limit=limit, reviewee_id=reviewee_id)
 
-@router.get("/{review_id}", response_model=dict)
-def get_review(review_id: str):
-    """Obtener una reseña por ID."""
-    supabase = get_supabase()
-    result = supabase.table("reviews").select("*").eq("id", review_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return result.data[0]
 
-@router.delete("/{review_id}", response_model=dict)
-def delete_review(review_id: str):
-    """Eliminar una reseña."""
-    supabase = get_supabase()
-    result = supabase.table("reviews").delete().eq("id", review_id).execute()
-    if not result.data:
+@router.get("/{review_id}", response_model=ReviewResponse)
+async def get_review(review_id: str, db: SupabaseClient = Depends(get_db)):
+    """Get a single review by ID."""
+    result = db.select("reviews", filters={"id": f"eq.{review_id}"}, limit=1)
+    if not result:
         raise HTTPException(status_code=404, detail="Review not found")
-    return {"id": review_id, "deleted": True}
+    return result[0]

@@ -1,25 +1,22 @@
-"""
-Quote Service — Servicio #2: Presupuesto + Cotización con Proveedores
-El Inge Smart Grids — Microservicio FastAPI
+"""Quote Service - FastAPI Application.
 
-Endpoints:
-  /api/quotes        - CRUD de presupuestos
-  /api/materials     - CRUD de materiales
-  /api/suppliers     - CRUD de proveedores
-  /api/supplier-quotes - Cotizaciones de proveedores
+Servicio #2: Presupuesto + Cotizacion
+Gestiona presupuestos, materiales y proveedores con cotizaciones.
 """
-from fastapi import FastAPI, HTTPException, Depends
+
+import sys
+from pathlib import Path
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "shared"))
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import os, sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from routers import quotes, materials, suppliers
 
 app = FastAPI(
-    title="Smart Grids — Quote Service",
-    description="Presupuesto + Cotización con Proveedores",
+    title="El Inge Smart Grids - Quote Service",
+    description="Microservicio de Presupuestos y Cotizaciones",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -33,17 +30,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(quotes.router, prefix="/api/quotes", tags=["quotes"])
-app.include_router(materials.router, prefix="/api/materials", tags=["materials"])
-app.include_router(suppliers.router, prefix="/api/suppliers", tags=["suppliers"])
+# Include routers
+app.include_router(quotes.router, prefix="/api")
+app.include_router(materials.router, prefix="/api")
+app.include_router(suppliers.router, prefix="/api")
+
 
 @app.get("/health")
-def health():
-    return {"status": "ok", "service": "quote-service", "version": "1.0.0"}
+async def health_check():
+    return {"status": "healthy", "service": "quote-service", "version": "1.0.0"}
+
 
 @app.get("/")
-def root():
-    return {"service": "quote-service", "docs": "/docs"}
+async def root():
+    return {
+        "service": "quote-service",
+        "docs": "/docs",
+        "endpoints": [
+            "/api/quotes",
+            "/api/materials",
+            "/api/suppliers",
+        ],
+    }
+
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8006)))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8002)

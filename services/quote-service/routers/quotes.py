@@ -1,232 +1,141 @@
-"""Quotes router — CRUD de presupuestos + envío a proveedores."""
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from datetime import datetime, date
-from shared.supabase_client import get_supabase
-import uuid
+"""Router: Quotes endpoints."""
 
-router = APIRouter()
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+import sys
+from pathlib import Path
 
-# ============ SCHEMAS ============
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "shared"))
 
-class QuoteItem(BaseModel):
-    material_id: Optional[str] = None
-    name: str
-    category: str
-    quantity: float
-    unit: str = "unidad"
-    unit_price: float
-    discount_pct: float = 0
-    notes: Optional[str] = None
+from shared.supabase_client import SupabaseClient
+from shared.config import get_settings
+from schemas import (
+    QuoteCreate, QuoteUpdate, QuoteResponse,
+    SupplierQuoteCreate, SupplierQuoteResponse,
+    SendToSuppliersRequest,
+)
+import crud
 
-class QuoteCreate(BaseModel):
-    job_id: Optional[str] = None
-    technician_id: str
-    items: List[QuoteItem]
-    currency: str = "USD"
-    notes: Optional[str] = None
-    
-class QuoteUpdate(BaseModel):
-    items: Optional[List[QuoteItem]] = None
-    status: Optional[str] = None
-    currency: Optional[str] = None
-    notes: Optional[str] = None
-    pdf_url: Optional[str] = None
+router = APIRouter(prefix="/quotes", tags=["quotes"])
 
-class QuoteResponse(BaseModel):
-    id: str
-    job_id: Optional[str]
-    technician_id: str
-    total_amount: float
-    currency: str
-    items: list
-    pdf_url: Optional[str]
-    status: str
-    created_at: str
 
-# ============ ENDPOINTS ============
+def get_db():
+    from database import get_db as _get_db
+    return _get_db()
 
-@router.post("", response_model=dict)
-def create_quote(quote: QuoteCreate):
-    """Crear un nuevo presupuesto."""
-    supabase = get_supabase()
-    
-    total = sum(
-        item.quantity * item.unit_price * (1 - item.discount_pct / 100)
-        for item in quote.items
-    )
-    
-    items_data = [item.dict() for item in quote.items]
-    
-    data = {
-        "technician_id": quote.technician_id,
-        "job_id": quote.job_id,
-        "total_amount": round(total, 2),
-        "currency": quote.currency,
-        "items": items_data,
-        "status": "draft",
-    }
-    
-    result = supabase.table("quotes").insert(data).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Error creating quote")
-    
-    return {"id": result.data[0]["id"], "total": round(total, 2), "status": "draft"}
 
-@router.get("", response_model=List[dict])
-def list_quotes(
-    technician_id: Optional[str] = Query(None),
-    job_id: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    limit: int = Query(50, le=100),
-    offset: int = Query(0),
-):
-    """Listar presupuestos con filtros opcionales."""
-    supabase = get_supabase()
-    
-    query = supabase.table("quotes").select("*")
-    
-    if technician_id:
-        query = query.eq("technician_id", technician_id)
-    if job_id:
-        query = query.eq("job_id", job_id)
-    if status:
-        query = query.eq("status", status)
-    
-    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
-    
-    return result.data
-
-@router.get("/{quote_id}", response_model=dict)
-def get_quote(quote_id: str):
-    """Obtener un presupuesto por ID, incluyendo cotizaciones de proveedores."""
-    supabase = get_supabase()
-    
-    result = supabase.table("quotes").select("*").eq("id", quote_id).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Quote not found")
-    
-    quote = result.data[0]
-    
-    # Get supplier quotes for this quote
-    sq_result = supabase.table("supplier_quotes").select(
-        "*, supplier:suppliers(*), material:materials(*)"
-    ).eq("quote_id", quote_id).execute()
-    
-    quote["supplier_quotes"] = sq_result.data
-    
-    return quote
-
-@router.put("/{quote_id}", response_model=dict)
-def update_quote(quote_id: str, update: QuoteUpdate):
-    """Actualizar un presupuesto."""
-    supabase = get_supabase()
-    
-    data = {}
-    if update.items is not None:
-        data["items"] = [item.dict() for item in update.items]
+@router.post("", response_model=QuoteResponse, status_code=201)
+async def create_quote(quote: QuoteCreate, db: SupabaseClient = Depends(get_db)):
+    """Create a new quote / presupuesto."""
+    data = quote.model_dump(exclude_none=True)
+    # Recalculate total if items present
+    if data.get("items"):
         total = sum(
-            item.quantity * item.unit_price * (1 - item.discount_pct / 100)
-            for item in update.items
+            (item.get("quantity", 1) * item.get("unit_price", 0))
+            for item in data["items"]
         )
-        data["total_amount"] = round(total, 2)
-    if update.status is not None:
-        data["status"] = update.status
-    if update.currency is not None:
-        data["currency"] = update.currency
-    if update.pdf_url is not None:
-        data["pdf_url"] = update.pdf_url
-    
-    if not data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    
-    result = supabase.table("quotes").update(data).eq("id", quote_id).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Quote not found")
-    
-    return {"id": quote_id, "updated": True, "data": result.data[0]}
+        data["total_amount"] = total
+    return crud.create_quote(db, data)
 
-@router.delete("/{quote_id}", response_model=dict)
-def delete_quote(quote_id: str):
-    """Eliminar un presupuesto."""
-    supabase = get_supabase()
-    
-    result = supabase.table("quotes").delete().eq("id", quote_id).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Quote not found")
-    
-    return {"id": quote_id, "deleted": True}
 
-@router.post("/{quote_id}/send-to-suppliers", response_model=dict)
-def send_to_suppliers(quote_id: str, supplier_ids: List[str]):
-    """Enviar presupuesto a proveedores seleccionados para cotización."""
-    supabase = get_supabase()
-    
-    # Get the quote
-    quote_result = supabase.table("quotes").select("*").eq("id", quote_id).execute()
-    if not quote_result.data:
+@router.get("", response_model=list[QuoteResponse])
+async def list_quotes(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    status: Optional[str] = None,
+    db: SupabaseClient = Depends(get_db),
+):
+    """List all quotes with optional status filter."""
+    return crud.get_quotes(db, skip=skip, limit=limit, status=status)
+
+
+@router.get("/{quote_id}", response_model=QuoteResponse)
+async def get_quote(quote_id: str, db: SupabaseClient = Depends(get_db)):
+    """Get a single quote by ID."""
+    result = crud.get_quote(db, quote_id)
+    if not result:
         raise HTTPException(status_code=404, detail="Quote not found")
-    
-    quote = quote_result.data[0]
+    return result
+
+
+@router.put("/{quote_id}", response_model=QuoteResponse)
+async def update_quote(quote_id: str, quote: QuoteUpdate, db: SupabaseClient = Depends(get_db)):
+    """Update a quote."""
+    existing = crud.get_quote(db, quote_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    data = quote.model_dump(exclude_unset=True, exclude_none=True)
+    # Recalculate total if items changed
+    if data.get("items"):
+        total = sum(
+            (item.get("quantity", 1) * item.get("unit_price", 0))
+            for item in data["items"]
+        )
+        data["total_amount"] = total
+    result = crud.update_quote(db, quote_id, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    return result[0]
+
+
+@router.delete("/{quote_id}", status_code=204)
+async def delete_quote(quote_id: str, db: SupabaseClient = Depends(get_db)):
+    """Delete a quote."""
+    existing = crud.get_quote(db, quote_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    crud.delete_quote(db, quote_id)
+    return None
+
+
+@router.post("/{quote_id}/send-to-suppliers", status_code=200)
+async def send_to_suppliers(
+    quote_id: str,
+    request: SendToSuppliersRequest,
+    db: SupabaseClient = Depends(get_db),
+):
+    """Send a quote to multiple suppliers for pricing."""
+    quote = crud.get_quote(db, quote_id)
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quote not found")
+
     items = quote.get("items", [])
-    
-    # Create supplier_quotes for each item + supplier combination
+    if not items:
+        raise HTTPException(status_code=400, detail="Quote has no items to send")
+
+    supplier_ids = request.supplier_ids
+    if not supplier_ids:
+        # Send to all verified suppliers
+        all_suppliers = crud.get_suppliers(db, verified=True, limit=500)
+        supplier_ids = [s["id"] for s in all_suppliers]
+
+    if not supplier_ids:
+        raise HTTPException(status_code=400, detail="No suppliers available")
+
     created = []
     for supplier_id in supplier_ids:
         for item in items:
-            if item.get("material_id"):
-                sq_data = {
-                    "quote_id": quote_id,
-                    "supplier_id": supplier_id,
-                    "material_id": item["material_id"],
-                    "unit_price": 0,  # Supplier will fill this
-                    "status": "pending",
-                }
-                result = supabase.table("supplier_quotes").insert(sq_data).execute()
-                if result.data:
-                    created.append(result.data[0]["id"])
-    
+            sq_data = {
+                "quote_id": quote_id,
+                "supplier_id": supplier_id,
+                "material_id": item.get("material_id", ""),
+                "unit_price": 0.0,
+                "currency": quote.get("currency", "USD"),
+                "stock_available": 0,
+                "delivery_days": 7,
+                "status": "pending",
+            }
+            try:
+                sq = crud.create_supplier_quote(db, sq_data)
+                created.append(sq)
+            except Exception:
+                pass  # Continue with other suppliers
+
     # Update quote status
-    supabase.table("quotes").update({"status": "sent_to_suppliers"}).eq("id", quote_id).execute()
-    
+    crud.update_quote(db, quote_id, {"status": "sent_to_suppliers"})
+
     return {
-        "quote_id": quote_id,
-        "suppliers_notified": len(supplier_ids),
+        "message": f"Quote sent to {len(supplier_ids)} supplier(s)",
         "supplier_quotes_created": len(created),
-        "status": "sent_to_suppliers",
-    }
-
-@router.get("/{quote_id}/supplier-quotes", response_model=List[dict])
-def get_supplier_quotes(quote_id: str):
-    """Obtener todas las cotizaciones de proveedores para un presupuesto."""
-    supabase = get_supabase()
-    
-    result = supabase.table("supplier_quotes").select(
-        "*, supplier:suppliers(*), material:materials(*)"
-    ).eq("quote_id", quote_id).execute()
-    
-    return result.data
-
-@router.post("/{quote_id}/generate-pdf", response_model=dict)
-def generate_pdf_endpoint(quote_id: str):
-    """Marcar presupuesto como enviado y generar PDF (placeholder)."""
-    supabase = get_supabase()
-    
-    result = supabase.table("quotes").update({
-        "status": "sent",
-        "pdf_url": f"/pdf/quote_{quote_id}.pdf"
-    }).eq("id", quote_id).execute()
-    
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Quote not found")
-    
-    return {
-        "quote_id": quote_id,
-        "pdf_url": f"/pdf/quote_{quote_id}.pdf",
-        "status": "sent",
+        "supplier_ids": supplier_ids,
     }
