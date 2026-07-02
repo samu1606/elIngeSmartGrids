@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Zap, Menu, X } from "lucide-react";
-import LanguageNormSelector from "./LanguageNormSelector";
+
+const LanguageNormSelector = dynamic(() => import("./LanguageNormSelector"), { ssr: false });
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,8 +58,9 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden">
+          {/* Mobile: Language selector + Menu button */}
+          <div className="flex md:hidden items-center gap-2">
+            <LanguageNormSelector />
             <button
               onClick={() => setIsOpen(!isOpen)}
               type="button"
