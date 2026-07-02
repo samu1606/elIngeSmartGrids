@@ -16,7 +16,9 @@ import {
   User,
   Shield,
   CreditCard,
-  Sun
+  Sun,
+  Wrench,
+  Briefcase
 } from "lucide-react";
 import { signOutAction } from "@/app/(auth)/actions";
 
@@ -49,6 +51,8 @@ export default function Sidebar({
     { label: "Reportes", href: "/dashboard/reportes", icon: BarChart3 },
     { label: "DISEÑO RETIE 2024", href: "/dashboard/reportes/retie", icon: Shield },
     { label: "Fotovoltaico", href: "/dashboard/fotovoltaico", icon: Sun },
+    { label: "Técnicos", href: "/dashboard/tecnicos", icon: Wrench },
+    { label: "Trabajos", href: "/dashboard/trabajos", icon: Briefcase },
     { label: "Suscripción", href: "/dashboard/suscripcion", icon: CreditCard },
     { label: "Ajustes", href: "/dashboard/ajustes", icon: Settings },
   ];
