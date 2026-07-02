@@ -5,6 +5,17 @@ import { Wrench, Briefcase, Package, Zap, ArrowRight } from "lucide-react";
 
 const roles = [
   {
+    id: "pro",
+    icon: Zap,
+    title: "Para profesionales",
+    description: "Calculadora, proyectos, clientes, presupuestos, reportes RETIE y mucho más. Todo en una sola plataforma.",
+    href: "/dashboard",
+    badge: "Para ingenieros",
+    color: "from-violet-500 to-purple-400",
+    border: "border-violet-200 hover:border-violet-400",
+    bg: "hover:bg-violet-50",
+  },
+  {
     id: "cliente",
     icon: Briefcase,
     title: "Necesito un técnico",
@@ -36,17 +47,6 @@ const roles = [
     color: "from-amber-500 to-orange-400",
     border: "border-amber-200 hover:border-amber-400",
     bg: "hover:bg-amber-50",
-  },
-  {
-    id: "pro",
-    icon: Zap,
-    title: "Quiero todo",
-    description: "Calculadora, proyectos, clientes, presupuestos, reportes RETIE y más. El paquete completo.",
-    href: "/dashboard",
-    badge: "Para ingenieros",
-    color: "from-violet-500 to-purple-400",
-    border: "border-violet-200 hover:border-violet-400",
-    bg: "hover:bg-violet-50",
   },
 ];
 

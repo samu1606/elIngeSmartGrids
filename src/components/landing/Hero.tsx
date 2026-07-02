@@ -24,14 +24,13 @@ export default function Hero() {
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 mb-6 leading-tight">
-              Diseños Eléctricos <br className="hidden sm:inline" />
-              <span className="text-primary">Rápidos, Seguros</span> <br />
-              y Bajo Norma
+              La plataforma completa <br className="hidden sm:inline" />
+              para el mundo <span className="text-primary">eléctrico</span>
             </h1>
 
             {/* Description */}
             <p className="text-lg text-slate-600 mb-8 max-w-xl mx-auto lg:mx-0">
-              La primera plataforma SaaS en Colombia diseñada para digitalizar el flujo de trabajo de ingenieros y electricistas. Calcula calibres, gestiona presupuestos y genera memorias en minutos.
+              Conectamos ingenieros, técnicos, clientes y proveedores en un solo lugar. Calcula, gestiona, encuentra profesionales y cotiza materiales eléctricos bajo norma.
             </p>
 
             {/* CTAs */}
