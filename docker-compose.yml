@@ -30,7 +30,7 @@ services:
       - traefik.enable=true
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
     ports:
       - 3005:3000
