@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { Zap, Menu, X } from "lucide-react";
-
-const LanguageNormSelector = dynamic(() => import("./LanguageNormSelector"), { ssr: false });
+import LanguageNormSelector from "./LanguageNormSelector";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
