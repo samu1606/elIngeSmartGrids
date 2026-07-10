@@ -77,7 +77,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="md:hidden border-b border-slate-200 bg-white px-2 pt-2 pb-4 space-y-1 sm:px-3 animate-fade-in" id="mobile-menu">
+        <div className="md:hidden border-b border-slate-200 bg-white px-2 pt-2 pb-4 space-y-1 sm:px-3 transition-opacity duration-200" id="mobile-menu">
           <a
             href="#caracteristicas"
             onClick={() => setIsOpen(false)}
