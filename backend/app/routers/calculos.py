@@ -559,18 +559,16 @@ async def endpoint_cuadro_cargas(data: CuadroCargasInput):
         sistema=data.sistema,
         factor_diversidad=data.factor_diversidad,
     )
-    # Agregar info del tablero
+    # Agregar info del tablero — el totalizador NO ocupa circuitos
     circuitos_utilizados = len(cargas_list)
-    circuitos_totalizador = 2 if data.tiene_totalizador else 0
-    circuitos_disponibles = data.num_circuitos - circuitos_totalizador
     result["tablero"] = {
         "tipo": data.tipo_tablero,
         "num_circuitos": data.num_circuitos,
         "tiene_totalizador": data.tiene_totalizador,
         "circuitos_utilizados": circuitos_utilizados,
-        "circuitos_disponibles": circuitos_disponibles,
-        "circuitos_libres": circuitos_disponibles - circuitos_utilizados,
-        "porcentaje_ocupacion": round((circuitos_utilizados / circuitos_disponibles * 100), 1) if circuitos_disponibles > 0 else 100,
+        "circuitos_disponibles": data.num_circuitos,
+        "circuitos_libres": data.num_circuitos - circuitos_utilizados,
+        "porcentaje_ocupacion": round((circuitos_utilizados / data.num_circuitos * 100), 1) if data.num_circuitos > 0 else 100,
     }
     return result
 

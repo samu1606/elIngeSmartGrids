@@ -8,7 +8,7 @@ interface Carga {
   nombre: string;
   potencia_w: number;
   factor_potencia: number;
-  sistema: string;
+  sistema: string; // "mono", "bi", "tri"
   fase_a: boolean;
   fase_b: boolean;
   fase_c: boolean;
@@ -29,7 +29,7 @@ interface CuadroCargasResult {
 // =====================================================================
 // TIPOS DE TABLERO
 // =====================================================================
-type TipoTablero = "mono_120" | "mono_220" | "trifasico";
+type TipoTablero = "mono_120" | "bifasico" | "trifasico";
 
 interface OpcionTablero {
   value: TipoTablero;
@@ -39,16 +39,43 @@ interface OpcionTablero {
   circuitos: number[];
   tiene_totalizador: boolean;
   fases_disponibles: ("A" | "B" | "C")[];
+  sistemas_carga: { value: string; label: string }[];
 }
 
 const TIPOS_TABLERO: OpcionTablero[] = [
-  { value: "mono_120", label: "Monofásico 120V", tension: 120, sistema: "monofasico", circuitos: [4, 6, 8, 12], tiene_totalizador: false, fases_disponibles: ["A"] },
-  { value: "mono_220", label: "Monofásico 220V", tension: 220, sistema: "monofasico", circuitos: [4, 8, 12, 16, 20, 24, 28, 36], tiene_totalizador: true, fases_disponibles: ["A", "B"] },
-  { value: "trifasico", label: "Trifásico 208/220V", tension: 208, sistema: "trifasico", circuitos: [12, 16, 20, 24, 28, 36], tiene_totalizador: true, fases_disponibles: ["A", "B", "C"] },
+  {
+    value: "mono_120",
+    label: "Monofásico 120V",
+    tension: 120,
+    sistema: "monofasico",
+    circuitos: [4, 6, 8, 12],
+    tiene_totalizador: false,
+    fases_disponibles: ["A"],
+    sistemas_carga: [{ value: "mono", label: "Monofásico" }],
+  },
+  {
+    value: "bifasico",
+    label: "Bifásico 120/240V",
+    tension: 240,
+    sistema: "monofasico",
+    circuitos: [4, 8, 12, 16, 20, 24, 28, 36],
+    tiene_totalizador: true,
+    fases_disponibles: ["A", "B"],
+    sistemas_carga: [{ value: "mono", label: "Monofásico" }, { value: "bi", label: "Bifásico" }],
+  },
+  {
+    value: "trifasico",
+    label: "Trifásico 208/220V",
+    tension: 208,
+    sistema: "trifasico",
+    circuitos: [12, 16, 20, 24, 28, 36],
+    tiene_totalizador: true,
+    fases_disponibles: ["A", "B", "C"],
+    sistemas_carga: [{ value: "mono", label: "Monofásico" }, { value: "bi", label: "Bifásico" }, { value: "tri", label: "Trifásico" }],
+  },
 ];
 
 export default function CuadroCargasTab() {
-  // Tipo de tablero seleccionado
   const [tipoTablero, setTipoTablero] = useState<TipoTablero>("trifasico");
   const [numCircuitos, setNumCircuitos] = useState<number>(12);
   const [tieneTotalizador, setTieneTotalizador] = useState<boolean>(true);
@@ -77,17 +104,81 @@ export default function CuadroCargasTab() {
     setTipoTablero(tipo);
     setNumCircuitos(config.circuitos[0]);
     setTieneTotalizador(config.tiene_totalizador);
-    // Reset fases de cargas existentes según tipo
-    setCargas(prev => prev.map(c => ({
-      ...c,
-      fase_a: config.fases_disponibles.includes("A") ? c.fase_a : false,
-      fase_b: config.fases_disponibles.includes("B") ? c.fase_b : false,
-      fase_c: config.fases_disponibles.includes("C") ? c.fase_c : false,
-    })));
+    // Reset sistema de nueva carga al primero disponible
+    setNuevaSistema(config.sistemas_carga[0].value);
+    // Reset fases
+    setNuevaFaseA(config.fases_disponibles.includes("A"));
+    setNuevaFaseB(false);
+    setNuevaFaseC(false);
+    // Ajustar cargas existentes
+    setCargas(prev => prev.map(c => {
+      const fases: Record<"A" | "B" | "C", boolean> = { A: false, B: false, C: false };
+      if (c.sistema === "tri" && config.fases_disponibles.length === 3) {
+        fases.A = fases.B = fases.C = true;
+      } else if (c.sistema === "mono") {
+        // Mantener primera fase activa que esté disponible
+        if (c.fase_a && config.fases_disponibles.includes("A")) fases.A = true;
+        else if (c.fase_b && config.fases_disponibles.includes("B")) fases.B = true;
+        else if (c.fase_c && config.fases_disponibles.includes("C")) fases.C = true;
+        else fases[config.fases_disponibles[0]] = true;
+      } else if (c.sistema === "bi") {
+        if (config.fases_disponibles.length >= 2) {
+          fases.A = true; fases.B = true;
+        } else {
+          fases[config.fases_disponibles[0]] = true;
+        }
+      }
+      return { ...c, fase_a: fases.A, fase_b: fases.B, fase_c: fases.C };
+    }));
   };
 
-  const circuitosDisponibles = numCircuitos - (tieneTotalizador ? 2 : 0); // Totalizador ocupa 2 espacios
-  const puedeAgregar = cargas.length < circuitosDisponibles;
+  // Manejar cambio de sistema de carga — reset fases apropiadamente
+  const handleSistemaCarga = (sistema: string) => {
+    setNuevaSistema(sistema);
+    if (sistema === "tri") {
+      // Trifásico: todas las fases disponibles
+      setNuevaFaseA(tableroConfig.fases_disponibles.includes("A"));
+      setNuevaFaseB(tableroConfig.fases_disponibles.includes("B"));
+      setNuevaFaseC(tableroConfig.fases_disponibles.includes("C"));
+    } else if (sistema === "bi") {
+      // Bifásico: exactamente 2 fases (primeras 2 disponibles)
+      const disponibles = tableroConfig.fases_disponibles;
+      setNuevaFaseA(disponibles.includes("A"));
+      setNuevaFaseB(disponibles.includes("B") && disponibles.length >= 2);
+      setNuevaFaseC(false);
+    } else {
+      // Monofásico: solo 1 fase (la primera disponible que no esté usada)
+      setNuevaFaseA(tableroConfig.fases_disponibles.includes("A"));
+      setNuevaFaseB(false);
+      setNuevaFaseC(false);
+    }
+  };
+
+  // Para monofásico: radio button (solo una fase)
+  // Para bifásico: exactamente 2 fases
+  const handleFaseMono = (fase: "A" | "B" | "C") => {
+    setNuevaFaseA(fase === "A");
+    setNuevaFaseB(fase === "B");
+    setNuevaFaseC(fase === "C");
+  };
+
+  const handleFaseBi = (fase: "A" | "B" | "C") => {
+    // Toggle la fase, mantener exactamente 2 activas
+    const current: Record<"A" | "B" | "C", boolean> = {
+      A: nuevaFaseA, B: nuevaFaseB, C: nuevaFaseC,
+    };
+    current[fase] = !current[fase];
+    const activas = (current.A ? 1 : 0) + (current.B ? 1 : 0) + (current.C ? 1 : 0);
+    if (activas === 2 || activas === 1) {
+      // Permitir si hay 1 o 2 (para que pueda cambiar)
+      setNuevaFaseA(current.A);
+      setNuevaFaseB(current.B);
+      setNuevaFaseC(current.C);
+    }
+  };
+
+  // Totalizador NO ocupa circuitos
+  const puedeAgregar = cargas.length < numCircuitos;
 
   const agregarCarga = () => {
     if (!nuevaNombre.trim() || !puedeAgregar) return;
@@ -96,6 +187,8 @@ export default function CuadroCargasTab() {
       sistema: nuevaSistema, fase_a: nuevaFaseA, fase_b: nuevaFaseB, fase_c: nuevaFaseC, tipo_carga: nuevaTipo
     }]);
     setNuevaNombre(""); setNuevaPotencia(1000); setNuevaFP(0.9);
+    // Reset fases para la siguiente carga
+    handleSistemaCarga(nuevaSistema);
   };
 
   const eliminarCarga = (idx: number) => setCargas(cargas.filter((_, i) => i !== idx));
@@ -121,6 +214,15 @@ export default function CuadroCargasTab() {
     finally { setLoading(false); }
   };
 
+  // Contar fases activas para mostrar badges
+  const getFasesActivas = (c: Carga): string[] => {
+    const fases: string[] = [];
+    if (c.fase_a) fases.push("A");
+    if (c.fase_b) fases.push("B");
+    if (c.fase_c) fases.push("C");
+    return fases;
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
@@ -136,10 +238,10 @@ export default function CuadroCargasTab() {
             <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Tipo de Tablero</h4>
           </div>
           {/* Botones de tipo */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             {TIPOS_TABLERO.map(t => (
               <button key={t.value} type="button" onClick={() => handleTipoTablero(t.value)}
-                className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-all border text-left ${
                   tipoTablero === t.value
                     ? "bg-slate-900 text-white border-slate-900 shadow-sm"
                     : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
@@ -164,19 +266,19 @@ export default function CuadroCargasTab() {
               ))}
             </div>
           </div>
-          {/* Totalizador */}
+          {/* Totalizador — NO ocupa circuitos */}
           {tableroConfig.tiene_totalizador && (
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
               <input type="checkbox" checked={tieneTotalizador} onChange={(e) => setTieneTotalizador(e.target.checked)}
                 className="h-4 w-4 rounded accent-emerald-600" />
-              Incluir totalizador (ocupa 2 espacios)
+              Incluir totalizador
             </label>
           )}
           {/* Info del tablero */}
           <div className="flex items-center gap-3 text-xs text-slate-500 bg-white rounded-lg px-3 py-2 border border-slate-100">
             <span className="font-bold">Tensión:</span> {tableroConfig.tension}V
             <span className="font-bold ml-2">Sistema:</span> {tableroConfig.sistema}
-            <span className="font-bold ml-2">Circuitos libres:</span> {circuitosDisponibles - cargas.length}/{circuitosDisponibles}
+            <span className="font-bold ml-2">Circuitos usados:</span> {cargas.length}/{numCircuitos}
           </div>
         </div>
 
@@ -199,42 +301,91 @@ export default function CuadroCargasTab() {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-primary focus:outline-none" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <select value={nuevaSistema} onChange={(e) => setNuevaSistema(e.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-primary focus:outline-none">
-              <option value="mono">Monofásico</option>
-              <option value="tri">Trifásico</option>
-            </select>
-            <select value={nuevaTipo} onChange={(e) => setNuevaTipo(e.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-primary focus:outline-none">
-              <option value="continua">Continua</option>
-              <option value="no_continua">No Continua</option>
-              <option value="iluminacion">Iluminación</option>
-              <option value="receptaculos">Receptáculos</option>
-              <option value="motor">Motor</option>
-            </select>
+          {/* Sistema de carga — dinámico según tablero */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Sistema de la Carga</label>
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${tableroConfig.sistemas_carga.length}, 1fr)` }}>
+              {tableroConfig.sistemas_carga.map(s => (
+                <button key={s.value} type="button" onClick={() => handleSistemaCarga(s.value)}
+                  className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                    nuevaSistema === s.value
+                      ? "bg-slate-800 text-white border-slate-800"
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
-          {/* Fases dinámicas según tipo de tablero */}
-          <div className="flex items-center gap-4 flex-wrap">
-            {tableroConfig.fases_disponibles.includes("A") && (
-              <label className="flex items-center gap-1 text-xs font-bold text-slate-500">
-                <input type="checkbox" checked={nuevaFaseA} onChange={(e) => setNuevaFaseA(e.target.checked)} className="accent-emerald-600" /> Fase A
-              </label>
-            )}
-            {tableroConfig.fases_disponibles.includes("B") && (
-              <label className="flex items-center gap-1 text-xs font-bold text-slate-500">
-                <input type="checkbox" checked={nuevaFaseB} onChange={(e) => setNuevaFaseB(e.target.checked)} className="accent-emerald-600" /> Fase B
-              </label>
-            )}
-            {tableroConfig.fases_disponibles.includes("C") && (
-              <label className="flex items-center gap-1 text-xs font-bold text-slate-500">
-                <input type="checkbox" checked={nuevaFaseC} onChange={(e) => setNuevaFaseC(e.target.checked)} className="accent-emerald-600" /> Fase C
-              </label>
+          <select value={nuevaTipo} onChange={(e) => setNuevaTipo(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold focus:border-primary focus:outline-none">
+            <option value="continua">Continua</option>
+            <option value="no_continua">No Continua</option>
+            <option value="iluminacion">Iluminación</option>
+            <option value="receptaculos">Receptáculos</option>
+            <option value="motor">Motor</option>
+          </select>
+
+          {/* === Selector de fases según sistema de carga === */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase mb-1.5">
+              {nuevaSistema === "tri" ? "Fases (Automático — Trifásico)" :
+               nuevaSistema === "bi" ? "Selecciona 2 Fases" :
+               "Selecciona 1 Fase"}
+            </label>
+
+            {nuevaSistema === "tri" ? (
+              // Trifásico: automático, mostrar badge
+              <div className="flex gap-1.5">
+                {tableroConfig.fases_disponibles.map(f => (
+                  <span key={f} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: f === "A" ? "#f59e0b" : f === "B" ? "#3b82f6" : "#10b981" }}>
+                    Fase {f}
+                  </span>
+                ))}
+                <span className="text-xs text-slate-400 self-center ml-1">↻ Balanceada</span>
+              </div>
+            ) : nuevaSistema === "bi" ? (
+              // Bifásico: checkboxes para exactamente 2 fases
+              <div className="flex gap-2">
+                {tableroConfig.fases_disponibles.map(f => (
+                  <button key={f} type="button"
+                    onClick={() => handleFaseBi(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                      (f === "A" && nuevaFaseA) || (f === "B" && nuevaFaseB) || (f === "C" && nuevaFaseC)
+                        ? "text-white border-transparent"
+                        : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                    style={(f === "A" && nuevaFaseA) || (f === "B" && nuevaFaseB) || (f === "C" && nuevaFaseC)
+                      ? { background: f === "A" ? "#f59e0b" : f === "B" ? "#3b82f6" : "#10b981" }
+                      : {}}>
+                    Fase {f}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              // Monofásico: radio button — solo 1 fase
+              <div className="flex gap-2">
+                {tableroConfig.fases_disponibles.map(f => (
+                  <button key={f} type="button"
+                    onClick={() => handleFaseMono(f)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                      (f === "A" && nuevaFaseA) || (f === "B" && nuevaFaseB) || (f === "C" && nuevaFaseC)
+                        ? "text-white border-transparent"
+                        : "bg-white text-slate-400 border-slate-200"
+                    }`}
+                    style={(f === "A" && nuevaFaseA) || (f === "B" && nuevaFaseB) || (f === "C" && nuevaFaseC)
+                      ? { background: f === "A" ? "#f59e0b" : f === "B" ? "#3b82f6" : "#10b981" }
+                      : {}}>
+                    Fase {f}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
+
           <button type="button" onClick={agregarCarga} disabled={!puedeAgregar}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            <Plus className="h-4 w-4" /> {puedeAgregar ? "Agregar Carga" : `Máximo ${circuitosDisponibles} circuitos`}
+            <Plus className="h-4 w-4" /> {puedeAgregar ? "Agregar Carga" : `Máximo ${numCircuitos} circuitos`}
           </button>
         </div>
 
@@ -249,22 +400,28 @@ export default function CuadroCargasTab() {
         {cargas.length > 0 && (
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-400 uppercase">Cargas Ingresadas ({cargas.length}/{circuitosDisponibles})</h4>
-              {tableroConfig.tiene_totalizador && tieneTotalizador && (
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+2 Totalizador</span>
+              <h4 className="text-xs font-bold text-slate-400 uppercase">Cargas ({cargas.length}/{numCircuitos})</h4>
+              {tieneTotalizador && (
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">+ Totalizador</span>
               )}
             </div>
             <div className="space-y-2">
               {cargas.map((c, i) => {
-                const fases = ["A", "B", "C"].filter(f => c[`fase_${f.toLowerCase()}` as keyof Carga] as boolean);
+                const fases = getFasesActivas(c);
+                const sistemaLabel = c.sistema === "mono" ? "Mono" : c.sistema === "bi" ? "Bi" : "Tri";
                 return (
                   <div key={i} className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg text-xs">
                     <div className="font-semibold text-slate-700 truncate flex-1">{i + 1}. {c.nombre}</div>
-                    <div className="text-slate-500 mx-2 shrink-0">{c.potencia_w}W · FP{c.factor_potencia}</div>
+                    <div className="text-slate-500 mx-2 shrink-0">{c.potencia_w}W · {sistemaLabel}</div>
                     <div className="flex items-center gap-1 mx-2 shrink-0">
-                      {fases.map(f => <span key={f} className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-white" style={{ background: f === "A" ? "#f59e0b" : f === "B" ? "#3b82f6" : "#10b981" }}>{f}</span>)}
+                      {fases.map(f => (
+                        <span key={f} className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold text-white"
+                          style={{ background: f === "A" ? "#f59e0b" : f === "B" ? "#3b82f6" : "#10b981" }}>
+                          {f}
+                        </span>
+                      ))}
                     </div>
-                    <div className="text-slate-400 shrink-0">{c.tipo_carga}</div>
+                    <div className="text-slate-400 shrink-0 hidden sm:block">{c.tipo_carga}</div>
                     <button onClick={() => eliminarCarga(i)} className="text-red-400 hover:text-red-600 ml-2 shrink-0"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 );
@@ -286,13 +443,13 @@ export default function CuadroCargasTab() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
                   <span className="text-xs font-bold text-slate-400 uppercase">Resultado</span>
-                  <h2 className="text-2xl font-extrabold text-slate-800 font-display mt-0.5">Breaker Principal: {result.breaker_principal || result.alimentador?.breaker || "N/A"} A</h2>
+                  <h2 className="text-2xl font-extrabold text-slate-800 font-display mt-0.5">Breaker Principal: {result.breaker_principal || "N/A"} A</h2>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
                   <CheckCircle className="h-3.5 w-3.5" /> Calculado
                 </span>
               </div>
-              <pre className="text-xs text-slate-600 bg-slate-50 p-4 rounded-xl overflow-auto max	h-96">{JSON.stringify(result, null, 2)}</pre>
+              <pre className="text-xs text-slate-600 bg-slate-50 p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(result, null, 2)}</pre>
             </div>
             <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
