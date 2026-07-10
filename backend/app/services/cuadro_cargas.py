@@ -253,8 +253,12 @@ def calcular_cuadro_cargas(
         potencia_diseno = potencia_w * factor_diseno
 
         # Distribuir en fases
-        if sistema_carga == "trifasico" or sistema == "trifasico":
+        fase_asignada = None  # Inicializar para evitar UnboundLocalError
+        es_trifasica = False
+
+        if sistema_carga == "trifasico" or sistema_carga == "tri":
             # Carga trifásica balanceada
+            es_trifasica = True
             corriente = _calcular_corriente_fase(potencia_w, fp, tension, "trifasico")
             corriente_diseno = _calcular_corriente_fase(potencia_diseno, fp, tension, "trifasico")
 
@@ -264,9 +268,29 @@ def calcular_cuadro_cargas(
                     potencia_diseno_fase[fase] += potencia_diseno / 3
                     corriente_fase[fase] += corriente
                     corriente_diseno_fase[fase] += corriente_diseno
+            fase_asignada = "A-B-C"
+        elif sistema_carga == "bifasico" or sistema_carga == "bi":
+            # Carga bifásica — asignar a las 2 fases seleccionadas
+            fases_activas = []
+            for fase in ["A", "B", "C"]:
+                if carga.get(f"fase_{fase.lower()}", False):
+                    fases_activas.append(fase)
+            if len(fases_activas) < 2:
+                # Auto-asignar a las 2 fases menos cargadas
+                fases_ordenadas = sorted(corriente_fase, key=corriente_fase.get)
+                fases_activas = fases_ordenadas[:2]
+
+            corriente = _calcular_corriente_fase(potencia_w, fp, tension, "monofasico")
+            corriente_diseno = _calcular_corriente_fase(potencia_diseno, fp, tension, "monofasico")
+
+            for fase in fases_activas:
+                potencia_fase[fase] += potencia_w / 2
+                potencia_diseno_fase[fase] += potencia_diseno / 2
+                corriente_fase[fase] += corriente
+                corriente_diseno_fase[fase] += corriente_diseno
+            fase_asignada = "-".join(fases_activas)
         else:
-            # Carga monofásica - asignar a fase específica
-            fase_asignada = None
+            # Carga monofásica — asignar a fase específica
             for fase in ["A", "B", "C"]:
                 if carga.get(f"fase_{fase.lower()}", False):
                     fase_asignada = fase
@@ -294,7 +318,7 @@ def calcular_cuadro_cargas(
             "factor_potencia": fp,
             "tipo_carga": tipo_carga,
             "factor_diseno": factor_diseno,
-            "fase_asignada": fase_asignada if sistema_carga != "trifasico" else "A-B-C",
+            "fase_asignada": fase_asignada,
             "corriente_a": round(corriente, 2),
             "corriente_diseno_a": round(corriente_diseno, 2),
         })
