@@ -29,7 +29,7 @@ interface CuadroCargasResult {
 // =====================================================================
 // TIPOS DE TABLERO
 // =====================================================================
-type TipoTablero = "mono_120" | "mono_220" | "bifasico" | "trifasico";
+type TipoTablero = "mono_120" | "mono_220" | "trifasico";
 
 interface OpcionTablero {
   value: TipoTablero;
@@ -43,8 +43,7 @@ interface OpcionTablero {
 
 const TIPOS_TABLERO: OpcionTablero[] = [
   { value: "mono_120", label: "Monofásico 120V", tension: 120, sistema: "monofasico", circuitos: [4, 6, 8, 12], tiene_totalizador: false, fases_disponibles: ["A"] },
-  { value: "mono_220", label: "Monofásico 220V", tension: 220, sistema: "monofasico", circuitos: [4, 8, 12, 16, 20, 24, 28, 36], tiene_totalizador: false, fases_disponibles: ["A", "B"] },
-  { value: "bifasico", label: "Bifásico 120/240V", tension: 240, sistema: "bifasico", circuitos: [12, 16, 20, 24, 28, 36], tiene_totalizador: true, fases_disponibles: ["A", "B"] },
+  { value: "mono_220", label: "Monofásico 220V", tension: 220, sistema: "monofasico", circuitos: [4, 8, 12, 16, 20, 24, 28, 36], tiene_totalizador: true, fases_disponibles: ["A", "B"] },
   { value: "trifasico", label: "Trifásico 208/220V", tension: 208, sistema: "trifasico", circuitos: [12, 16, 20, 24, 28, 36], tiene_totalizador: true, fases_disponibles: ["A", "B", "C"] },
 ];
 
