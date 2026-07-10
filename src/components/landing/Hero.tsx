@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { Zap, ShieldCheck, ArrowRight, Play, CheckCircle2 } from "lucide-react";
+import { Zap, ShieldCheck, ArrowRight, Play } from "lucide-react";
+import { useT } from "@/lib/i18n-context";
 
 export default function Hero() {
+  const { t } = useT();
+
   return (
     <section className="relative overflow-hidden pt-12 pb-20 sm:pt-16 sm:pb-28 lg:pt-20 lg:pb-32">
       {/* Background Gradients */}
@@ -19,18 +24,17 @@ export default function Hero() {
             {/* Trust Badge */}
             <div className="inline-flex self-center lg:self-start items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary mb-6 select-none">
               <ShieldCheck className="h-4 w-4" />
-              <span>Conforme a NTC 2050 (Segunda Actualización) + RETIE</span>
+              <span>{t("hero.badge", "Conforme a NTC 2050 (Segunda Actualización) + RETIE")}</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 mb-6 leading-tight">
-              La plataforma completa <br className="hidden sm:inline" />
-              para el mundo <span className="text-primary">eléctrico</span>
+              {t("hero.title", "La plataforma completa para el mundo eléctrico")}
             </h1>
 
             {/* Description */}
             <p className="text-lg text-slate-600 mb-8 max-w-xl mx-auto lg:mx-0">
-              Conectamos ingenieros, técnicos, clientes y proveedores en un solo lugar. Calcula, gestiona, encuentra profesionales y cotiza materiales eléctricos bajo norma.
+              {t("hero.subtitle", "Conectamos ingenieros, técnicos, clientes y proveedores en un solo lugar.")}
             </p>
 
             {/* CTAs */}
@@ -39,15 +43,15 @@ export default function Hero() {
                 href="/register"
                 className="group inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-base font-bold text-slate-950 hover:bg-primary-dark active:scale-[0.98] transition-all duration-200"
               >
-                Comenzar Gratis
+                {t("hero.cta.start", "Comenzar Gratis")}
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <a
                 href="#caracteristicas"
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/40 px-6 py-3.5 text-base font-semibold text-slate-200 hover:bg-white hover:text-slate-900 transition-colors"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/40 px-6 py-3.5 text-base font-semibold text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
               >
                 <Play className="h-4 w-4 fill-slate-400" />
-                Ver Funciones
+                {t("hero.cta.features", "Ver Funciones")}
               </a>
             </div>
 
@@ -55,20 +59,20 @@ export default function Hero() {
             <div className="grid grid-cols-3 gap-6 border-t border-slate-200 pt-8 max-w-md mx-auto lg:mx-0">
               <div>
                 <p className="text-3xl font-bold text-slate-900 font-display">90%</p>
-                <p className="text-xs text-slate-500 mt-1">Ahorro de Tiempo</p>
+                <p className="text-xs text-slate-500 mt-1">{t("hero.stat.time", "Ahorro de Tiempo")}</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-slate-900 font-display">100%</p>
-                <p className="text-xs text-slate-500 mt-1">Precisión Técnica</p>
+                <p className="text-xs text-slate-500 mt-1">{t("hero.stat.precision", "Precisión Técnica")}</p>
               </div>
               <div>
                 <p className="text-3xl font-bold text-slate-900 font-display">COP</p>
-                <p className="text-xs text-slate-500 mt-1">Precios Locales</p>
+                <p className="text-xs text-slate-500 mt-1">{t("hero.stat.prices", "Precios Locales")}</p>
               </div>
             </div>
           </div>
 
-          {/* Hero Right Mockup */}
+          {/* Hero Right Mockup - se mantiene igual porque es decorativo */}
           <div className="col-span-12 lg:col-span-6 mt-12 lg:mt-0">
             <div className="relative mx-auto max-w-xl lg:max-w-none">
               

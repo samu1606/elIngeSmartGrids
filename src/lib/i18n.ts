@@ -17,6 +17,9 @@ export const translations = {
     "hero.cta.start": "Comenzar Gratis",
     "hero.cta.features": "Ver Funciones",
     "hero.badge": "Conforme a NTC 2050 + RETIE",
+    "hero.stat.time": "Ahorro de Tiempo",
+    "hero.stat.precision": "Precisión Técnica",
+    "hero.stat.prices": "Precios Locales",
 
     // RoleSelector
     "roles.title": "Elige tu perfil",
@@ -87,6 +90,9 @@ export const translations = {
     "hero.cta.start": "Get Started Free",
     "hero.cta.features": "See Features",
     "hero.badge": "Compliant with NEC + UL Standards",
+    "hero.stat.time": "Time Saved",
+    "hero.stat.precision": "Technical Precision",
+    "hero.stat.prices": "Local Pricing",
 
     // RoleSelector
     "roles.title": "Choose your profile",

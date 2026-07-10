@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { Zap, Menu, X } from "lucide-react";
 import LanguageNormSelector from "./LanguageNormSelector";
+import { useT } from "@/lib/i18n-context";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useT();
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
@@ -28,13 +30,13 @@ export default function Navbar() {
           <div className="hidden md:block">
             <div className="flex items-center gap-8">
               <a href="#caracteristicas" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                Características
+                {t("nav.features", "Características")}
               </a>
               <a href="#precios" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                Precios
+                {t("nav.pricing", "Precios")}
               </a>
               <a href="#testimonios" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                Testimonios
+                {t("nav.testimonials", "Testimonios")}
               </a>
             </div>
           </div>
@@ -46,13 +48,13 @@ export default function Navbar() {
               href="/login"
               className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
-              Iniciar Sesión
+              {t("nav.login", "Iniciar Sesión")}
             </Link>
             <Link
               href="/register"
               className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-primary-dark active:scale-[0.98] transition-all duration-200"
             >
-              Pruébalo Gratis
+              {t("nav.register", "Pruébalo Gratis")}
             </Link>
           </div>
 
@@ -64,9 +66,9 @@ export default function Navbar() {
               type="button"
               className="inline-flex items-center justify-center rounded-md p-2 text-slate-500 hover:bg-white hover:text-slate-900 focus:outline-none transition-colors"
               aria-controls="mobile-menu"
-              aria-expanded="false"
+              aria-expanded={isOpen ? "true" : "false"}
             >
-              <span className="sr-only">Abrir menú principal</span>
+              <span className="sr-only">{isOpen ? "Cerrar menú" : "Abrir menú"}</span>
               {isOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
             </button>
           </div>
@@ -81,21 +83,21 @@ export default function Navbar() {
             onClick={() => setIsOpen(false)}
             className="block rounded-md px-3 py-2 text-base font-medium text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
           >
-            Características
+            {t("nav.features", "Características")}
           </a>
           <a
             href="#precios"
             onClick={() => setIsOpen(false)}
             className="block rounded-md px-3 py-2 text-base font-medium text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
           >
-            Precios
+            {t("nav.pricing", "Precios")}
           </a>
           <a
             href="#testimonios"
             onClick={() => setIsOpen(false)}
             className="block rounded-md px-3 py-2 text-base font-medium text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
           >
-            Testimonios
+            {t("nav.testimonials", "Testimonios")}
           </a>
           <div className="border-t border-slate-200 my-2 pt-2"></div>
           <Link
@@ -103,7 +105,7 @@ export default function Navbar() {
             onClick={() => setIsOpen(false)}
             className="block rounded-md px-3 py-2 text-base font-medium text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
           >
-            Iniciar Sesión
+            {t("nav.login", "Iniciar Sesión")}
           </Link>
           <div className="px-3 pt-2">
             <Link
@@ -111,7 +113,7 @@ export default function Navbar() {
               onClick={() => setIsOpen(false)}
               className="flex w-full items-center justify-center rounded-lg bg-primary py-2.5 text-base font-semibold text-slate-950 hover:bg-primary-dark transition-colors"
             >
-              Pruébalo Gratis
+              {t("nav.register", "Pruébalo Gratis")}
             </Link>
           </div>
         </div>
