@@ -165,5 +165,5 @@ export function getLocale(): Locale {
 export function t(key: string): string {
   const locale = getLocale();
   const dict = translations[locale] || translations.es;
-  return dict[key as keyof typeof dict] || translations.es[key as keyof typeof.es] || key;
+  return dict[key as keyof typeof dict] || translations.es[key as keyof typeof translations.es] || key;
 }
