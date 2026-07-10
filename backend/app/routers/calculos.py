@@ -545,17 +545,34 @@ class CuadroCargasInput(BaseModel):
     tension: float = Field(208, gt=0, description="Tensión línea-línea en Voltios")
     sistema: str = Field("trifasico", description="monofasico o trifasico")
     factor_diversidad: float | None = Field(None, ge=0, le=1, description="Factor de diversidad opcional")
+    tipo_tablero: str = Field("trifasico", description="mono_120, mono_220, bifasico, trifasico")
+    num_circuitos: int = Field(12, ge=1, le=36, description="Número de circuitos del tablero")
+    tiene_totalizador: bool = Field(False, description="Si el tablero incluye totalizador (ocupa 2 espacios)")
 
 
 @router.post("/cuadro-cargas")
 async def endpoint_cuadro_cargas(data: CuadroCargasInput):
     cargas_list = [c.model_dump() for c in data.cargas]
-    return calcular_cuadro_cargas(
+    result = calcular_cuadro_cargas(
         cargas=cargas_list,
         tension=data.tension,
         sistema=data.sistema,
         factor_diversidad=data.factor_diversidad,
     )
+    # Agregar info del tablero
+    circuitos_utilizados = len(cargas_list)
+    circuitos_totalizador = 2 if data.tiene_totalizador else 0
+    circuitos_disponibles = data.num_circuitos - circuitos_totalizador
+    result["tablero"] = {
+        "tipo": data.tipo_tablero,
+        "num_circuitos": data.num_circuitos,
+        "tiene_totalizador": data.tiene_totalizador,
+        "circuitos_utilizados": circuitos_utilizados,
+        "circuitos_disponibles": circuitos_disponibles,
+        "circuitos_libres": circuitos_disponibles - circuitos_utilizados,
+        "porcentaje_ocupacion": round((circuitos_utilizados / circuitos_disponibles * 100), 1) if circuitos_disponibles > 0 else 100,
+    }
+    return result
 
 
 # =============================================================================
