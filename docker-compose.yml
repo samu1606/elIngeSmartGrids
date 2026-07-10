@@ -33,7 +33,8 @@ services:
       context: .
       dockerfile: Dockerfile
     # Forzar modo producción (anula cualquier CMD cacheado)
-    command: ["node", "server.js"]
+    # Build se ejecuta al iniciar el contenedor
+    command: ["sh", "-c", "npm run build && npm start"]
     ports:
       - 3005:3000
     environment:
