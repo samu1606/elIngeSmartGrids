@@ -75,14 +75,16 @@ export default function SeccionTab() {
       });
 
       if (!response.ok) {
-        throw new Error("Error en el servidor de cálculos.");
+        const errorText = await response.text().catch(() => "Error desconocido");
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      console.error(err);
-      setError("No se pudo conectar con el motor de cálculo. Verifica que el servidor backend esté corriendo.");
+      console.error("[SeccionTab] Error de cálculo:", err);
+      const apiUrl = getApiUrl();
+      setError(`No se pudo conectar con el motor de cálculo (${apiUrl}/api/calculos/seccion). Verifica que el servidor backend esté corriendo. Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
