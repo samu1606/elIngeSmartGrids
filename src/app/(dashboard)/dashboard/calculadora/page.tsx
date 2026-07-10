@@ -8,7 +8,13 @@ import MotorTab from "@/components/calculadora/MotorTab";
 import IluminacionTab from "@/components/calculadora/IluminacionTab";
 import ReactivaTab from "@/components/calculadora/ReactivaTab";
 import PuestaTierraTab from "@/components/calculadora/PuestaTierraTab";
-import { Zap, Shield, Cpu, Lightbulb, TrendingDown, Globe, HelpCircle } from "lucide-react";
+import CuadroCargasTab from "@/components/calculadora/CuadroCargasTab";
+import CaidaTensionTab from "@/components/calculadora/CaidaTensionTab";
+import CortocircuitoTab from "@/components/calculadora/CortocircuitoTab";
+import TuberiasTab from "@/components/calculadora/TuberiasTab";
+import TransformadoresTab from "@/components/calculadora/TransformadoresTab";
+import PararrayosTab from "@/components/calculadora/PararrayosTab";
+import { Zap, Shield, Cpu, Lightbulb, TrendingDown, Globe, HelpCircle, Gauge, TrendingDown as Drop, ShieldAlert, Ruler, Battery, CloudLightning } from "lucide-react";
 
 const TABS = [
   { id: "seccion", label: "Sección Conductor", icon: Zap, component: SeccionTab },
@@ -17,6 +23,12 @@ const TABS = [
   { id: "iluminacion", label: "Iluminación", icon: Lightbulb, component: IluminacionTab },
   { id: "reactiva", label: "Factor de Potencia", icon: TrendingDown, component: ReactivaTab },
   { id: "puesta_tierra", label: "Puesta a Tierra", icon: Globe, component: PuestaTierraTab },
+  { id: "cuadro_cargas", label: "Cuadro de Cargas", icon: Gauge, component: CuadroCargasTab },
+  { id: "caida_tension", label: "Caída de Tensión", icon: Drop, component: CaidaTensionTab },
+  { id: "cortocircuito", label: "Cortocircuito", icon: ShieldAlert, component: CortocircuitoTab },
+  { id: "tuberias", label: "Tuberías", icon: Ruler, component: TuberiasTab },
+  { id: "transformadores", label: "Transformadores", icon: Battery, component: TransformadoresTab },
+  { id: "pararrayos", label: "Pararrayos", icon: CloudLightning, component: PararrayosTab },
 ] as const;
 
 export default function CalculadoraPage() {

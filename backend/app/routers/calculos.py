@@ -27,6 +27,12 @@ from app.services.calculos_electricos import (
     calcular_reactiva,
     calcular_puesta_tierra,
 )
+from app.services.cuadro_cargas import calcular_cuadro_cargas
+from app.services.caida_tension import calcular_caida_tension
+from app.services.cortocircuito import calcular_cortocircuito
+from app.services.tuberias import calcular_tuberias
+from app.services.transformadores import calcular_transformador
+from app.services.pararrayos import calcular_pararrayos
 
 router = APIRouter()
 
@@ -517,5 +523,162 @@ async def analizar_factura(data: dict):
         }
     except Exception as e:
         return {"ok": False, "error": f"Error Vision API: {str(e)}"}
+
+
+# =============================================================================
+# 9. CUADRO DE CARGAS
+# =============================================================================
+
+class CargaItem(BaseModel):
+    nombre: str = Field("Carga", description="Nombre de la carga")
+    potencia_w: float = Field(..., gt=0, description="Potencia en Watts")
+    factor_potencia: float = Field(0.9, gt=0, le=1, description="Factor de potencia")
+    sistema: str = Field("tri", description="mono o tri")
+    fase_a: bool = Field(True, description="Conectada a fase A")
+    fase_b: bool = Field(False, description="Conectada a fase B")
+    fase_c: bool = Field(False, description="Conectada a fase C")
+    tipo_carga: str = Field("continua", description="continua, no_continua, iluminacion, receptaculos, motor, cocina")
+
+
+class CuadroCargasInput(BaseModel):
+    cargas: list[CargaItem] = Field(..., min_items=1, description="Lista de cargas del tablero")
+    tension: float = Field(208, gt=0, description="Tensión línea-línea en Voltios")
+    sistema: str = Field("trifasico", description="monofasico o trifasico")
+    factor_diversidad: float | None = Field(None, ge=0, le=1, description="Factor de diversidad opcional")
+
+
+@router.post("/cuadro-cargas")
+async def endpoint_cuadro_cargas(data: CuadroCargasInput):
+    cargas_list = [c.model_dump() for c in data.cargas]
+    return calcular_cuadro_cargas(
+        cargas=cargas_list,
+        tension=data.tension,
+        sistema=data.sistema,
+        factor_diversidad=data.factor_diversidad,
+    )
+
+
+# =============================================================================
+# 10. CAÍDA DE TENSIÓN AVANZADA
+# =============================================================================
+
+class TramoInput(BaseModel):
+    longitud_m: float = Field(..., gt=0, description="Longitud del tramo en metros")
+    corriente_a: float = Field(..., gt=0, description="Corriente en Amperios")
+    calibre: str = Field("12 AWG", description="Calibre del conductor")
+    material: str = Field("cu", description="cu (cobre) o al (aluminio)")
+
+
+class CaidaTensionInput(BaseModel):
+    tramos: list[TramoInput] = Field(..., min_items=1, description="Lista de tramos en serie")
+    tension_nominal: float = Field(208, gt=0, description="Tensión nominal del sistema en Voltios")
+    sistema: str = Field("trifasico", description="trifasico o monofasico")
+
+
+@router.post("/caida-tension")
+async def endpoint_caida_tension(data: CaidaTensionInput):
+    tramos_list = [t.model_dump() for t in data.tramos]
+    return calcular_caida_tension(
+        tramos=tramos_list,
+        tension_nominal=data.tension_nominal,
+        sistema=data.sistema,
+    )
+
+
+# =============================================================================
+# 11. CORTOCIRCUITO
+# =============================================================================
+
+class CortocircuitoInput(BaseModel):
+    potencia_trafo_kva: float = Field(..., gt=0, description="Potencia del transformador en kVA")
+    impedancia_z_pct: float = Field(..., gt=0, le=100, description="Impedancia Z del transformador en %")
+    longitud_alimentador_m: float = Field(..., ge=0, description="Longitud del alimentador en metros")
+    calibre_alimentador: str = Field("2 AWG", description="Calibre del alimentador")
+    material: str = Field("cu", description="cu o al")
+    sistema: str = Field("trifasico", description="trifasico o monofasico")
+    tension: float = Field(208, gt=0, description="Tensión del sistema en Voltios")
+
+
+@router.post("/cortocircuito")
+async def endpoint_cortocircuito(data: CortocircuitoInput):
+    return calcular_cortocircuito(
+        potencia_trafo_kva=data.potencia_trafo_kva,
+        impedancia_z_pct=data.impedancia_z_pct,
+        longitud_alimentador_m=data.longitud_alimentador_m,
+        calibre_alimentador=data.calibre_alimentador,
+        material=data.material,
+        sistema=data.sistema,
+        tension=data.tension,
+    )
+
+
+# =============================================================================
+# 12. TUBERÍAS Y CANALIZACIONES
+# =============================================================================
+
+class ConductorTuboInput(BaseModel):
+    calibre: str = Field("12 AWG", description="Calibre del conductor")
+    tipo_aislamiento: str = Field("THW", description="THW, THHN, etc")
+    num_conductores: int = Field(1, ge=1, le=50, description="Número de conductores")
+
+
+class TuberiasInput(BaseModel):
+    conductores: list[ConductorTuboInput] = Field(..., min_items=1, description="Lista de conductores")
+    tipo_tubo: str = Field("PVC", description="PVC, EMT, RMC")
+
+
+@router.post("/tuberias")
+async def endpoint_tuberias(data: TuberiasInput):
+    conductores_list = [c.model_dump() for c in data.conductores]
+    return calcular_tuberias(
+        conductores=conductores_list,
+        tipo_tubo=data.tipo_tubo,
+    )
+
+
+# =============================================================================
+# 13. TRANSFORMADORES
+# =============================================================================
+
+class TransformadorInput(BaseModel):
+    potencia_total_kw: float = Field(..., gt=0, description="Potencia activa total en kW")
+    factor_potencia: float = Field(0.9, gt=0, le=1, description="Factor de potencia")
+    tension_primaria: float = Field(13200, gt=0, description="Tensión primaria en Voltios")
+    tension_secundaria: float = Field(208, gt=0, description="Tensión secundaria en Voltios")
+    tipo: str = Field("seco", description="seco o liquido")
+    sistema: str = Field("trifasico", description="trifasico o monofasico")
+
+
+@router.post("/transformadores")
+async def endpoint_transformadores(data: TransformadorInput):
+    return calcular_transformador(
+        potencia_total_kw=data.potencia_total_kw,
+        factor_potencia=data.factor_potencia,
+        tension_primaria=data.tension_primaria,
+        tension_secundaria=data.tension_secundaria,
+        tipo=data.tipo,
+        sistema=data.sistema,
+    )
+
+
+# =============================================================================
+# 14. PARARRAYOS
+# =============================================================================
+
+class PararrayosInput(BaseModel):
+    tipo_estructura: str = Field("residencial", description="residencial, comercial, industrial, repetidores")
+    altura_m: float = Field(..., gt=0, description="Altura de la estructura en metros")
+    area_m2: float = Field(..., gt=0, description="Área de la estructura en m²")
+    nivel_proteccion: str = Field("IV", description="Nivel de protección: I, II, III, IV")
+
+
+@router.post("/pararrayos")
+async def endpoint_pararrayos(data: PararrayosInput):
+    return calcular_pararrayos(
+        tipo_estructura=data.tipo_estructura,
+        altura_m=data.altura_m,
+        area_m2=data.area_m2,
+        nivel_proteccion=data.nivel_proteccion,
+    )
 
 
