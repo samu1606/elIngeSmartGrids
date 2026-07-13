@@ -729,7 +729,6 @@ function NuevoPresupuestoContent() {
       {/* ================================================================ */}
       {/* CLIENTE + PROYECTO — Selects desde Supabase */}
       {/* ================================================================ */}
-      {loadingBudget ? null : <>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
@@ -950,7 +949,6 @@ function NuevoPresupuestoContent() {
               </tbody>
             </table>
           </div>
-          </>}
 
           {/* Footer fijo: Totales + AIU + Guardar */}
           <div className="border-t-2 border-slate-200 bg-white px-5 py-3">
