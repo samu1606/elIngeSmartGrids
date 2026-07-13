@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Fragment, Suspense, use } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getApiUrl } from "@/lib/api";
@@ -212,45 +212,40 @@ function unpackAPUData(notes: string | null): Partial<BudgetItem> {
 // PÁGINA PRINCIPAL
 // =============================================================================
 
-function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchParams?: Promise<{ edit?: string }> }) {
+function NuevoPresupuestoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const editBudgetId = searchParams.get('edit');
+  const editBudgetId = searchParams.get('edit'); // Hook: puede ser null en primera renderización por Suspense
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
-  // Desempaquetar searchParams de la página (Next.js App Router — fuente más confiable)
-  // use() puede suspender → Suspense muestra fallback → cuando resuelve, pageEditId tiene el valor
-  const pageEditId: string | null = pageSearchParams ? (use(pageSearchParams)?.edit || null) : null;
+  // CAPTURA DEL ID — directo desde el navegador, sin hooks, sin Suspense, sin Promises
+  // `window.location.search` es la fuente de verdad absoluta en cliente.
+  // Se lee en cada render (no es caro) y se persiste en un ref para consistencia.
+  const getEditIdFromUrl = () => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('edit');
+  };
+  const browserEditId = getEditIdFromUrl();
 
-  // REFS — inmunes a stale state (fundamental para prevenir race conditions)
-  const editIdRef = useRef<string | null>(null); // se llena con window.location (infalible) + searchParam
+  // REFS — inmunes a stale state
+  const editIdRef = useRef<string | null>(browserEditId); // ← captura inicial desde navegador (instantáneo)
   const totalRef = useRef(0);
   const savingRef = useRef(false);
 
-  // CAPTURA GARANTIZADA del ID desde la URL — 4 fuentes en cascada:
-  //   1. pageEditId (use() sobre searchParams prop — Next.js App Router)
-  //   2. window.location.search (infalible, lee el navegador directamente)
-  //   3. useSearchParams().get('edit') (React hook, puede ser null en Suspense)
-  //   4. editIdRef.current (persiste entre renders, inmune a todo)
+  // Sincronizar: si useSearchParams eventualmente nos da el valor, actualizar ref
+  // También actualizar si el navegador tiene un valor que el hook no detectó
   useEffect(() => {
-    const fromWindow = new URLSearchParams(window.location.search).get('edit');
-    const fromReact = editBudgetId;
-
-    const finalId = pageEditId || fromWindow || fromReact;
-    if (finalId) {
-      editIdRef.current = finalId;
-      console.log("🔗 ID de edición capturado:", {
-        fromPage: pageEditId,
-        fromWindow,
-        fromReact,
-        final: finalId,
-        href: window.location.href,
-      });
-    } else {
-      console.log("🔗 Sin ID de edición — será CREATE", { href: window.location.href });
+    const fromWindow = getEditIdFromUrl();
+    const final = editBudgetId || fromWindow;
+    if (final && final !== editIdRef.current) {
+      editIdRef.current = final;
+      console.log("🔗 editIdRef actualizado:", { fromWindow, fromHook: editBudgetId, ref: editIdRef.current, href: window.location.href });
     }
-  }, [editBudgetId, pageEditId]); // se re-ejecuta si useSearchParams emite un cambio
+    if (!final) {
+      console.log("🔗 Sin ID de edición — CREATE. href:", window.location.href);
+    }
+  }, [editBudgetId]); // // re-ejecutar si el hook cambia (Suspense puede resolver tarde)
 
   // Estados del formulario
   const [number, setNumber] = useState("");
@@ -366,7 +361,7 @@ function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchPar
 
   // Cargar presupuesto para edición
   useEffect(() => {
-    const effectiveId = editBudgetId || editIdRef.current;
+    const effectiveId = editBudgetId || editIdRef.current || getEditIdFromUrl();
     if (!effectiveId) return;
     setLoadingBudget(true);
     const loadBudget = async () => {
@@ -655,7 +650,7 @@ function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchPar
 
   // UPDATE — Solo para edición (nunca dispara INSERT)
   const handleUpdate = async () => {
-    const budgetId = editIdRef.current || editBudgetId;
+    const budgetId = editIdRef.current || getEditIdFromUrl() || editBudgetId;
     if (!budgetId) {
       console.error("⛔ handleUpdate llamada sin editBudgetId — abortando");
       setError("Error: no se encontró el ID del presupuesto a editar.");
@@ -697,7 +692,7 @@ function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchPar
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
   const handleCreate = async () => {
-    const hasEditId = !!(editIdRef.current || editBudgetId);
+    const hasEditId = !!(editIdRef.current || getEditIdFromUrl() || editBudgetId);
     if (hasEditId) {
       console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO (no redirigir)");
       return;
@@ -750,10 +745,10 @@ function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchPar
     setError(null);
     setGuardando(true);
 
-    // USAR REF como fuente de verdad (editBudgetId state puede ser null en render inicial)
-    const capturedEditId = editIdRef.current || editBudgetId;
+    // Lectura fresca de 3 fuentes al momento del click
+    const capturedEditId = editIdRef.current || getEditIdFromUrl() || editBudgetId;
 
-    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| editIdRef:", editIdRef.current, "| searchParam:", editBudgetId, "| items:", items.length);
+    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| ref:", editIdRef.current, "| browser:", getEditIdFromUrl(), "| hook:", editBudgetId, "| items:", items.length);
 
     try {
       if (capturedEditId) {
@@ -1145,10 +1140,10 @@ function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchPar
   );
 }
 
-export default function NuevoPresupuestoPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+export default function NuevoPresupuestoPage() {
   return (
     <Suspense fallback={<div className="p-8 text-center text-sm text-slate-400">Cargando editor de presupuesto...</div>}>
-      <NuevoPresupuestoContent searchParams={searchParams} />
+      <NuevoPresupuestoContent />
     </Suspense>
   );
 }
