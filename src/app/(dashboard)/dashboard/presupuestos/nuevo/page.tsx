@@ -439,7 +439,7 @@ function NuevoPresupuestoContent() {
       return { ...item, subtotal: Math.round(subtotal * 100) / 100, discount_amount: Math.round(discount * 100) / 100, total: Math.round(total * 100) / 100 };
     });
 
-    const calc = calculateTotal();
+    const calc = computeTotal();
 
     setCalculatedItems(itemsCalc);
     setSubtotalGeneral(calc.sub);
@@ -564,20 +564,46 @@ function NuevoPresupuestoContent() {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // GUARDAR EN SUPABASE
+  // =========================================================================
+  // GUARDAR EN SUPABASE — Funciones separadas (evita race condition INSERT/UPDATE)
   // =========================================================================
 
-  const guardarPresupuesto = async () => {
-    if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
-    if (!projectName.trim()) { setError("Ingrese el nombre del proyecto."); return; }
-    if (!clientName) { setError("Seleccione o ingrese un cliente."); return; }
-    setError(null);
-    setGuardando(true);
+  const payloadComun = () => ({
+    number,
+    client_name: clientName,
+    project_name: projectName,
+    issue_date: issueDate,
+    valid_until: validUntil,
+  });
 
-    // =========================================================================
-    // CÁLCULO EXPLÍCITO DEL TOTAL (inline — nunca stale, nunca $0)
-    // =========================================================================
-    const subCalc = items.reduce((acc, item) => {
+  const buildItemsPayload = (budgetId: string) =>
+    items.map((item, idx) => ({
+      budget_id: budgetId,
+      category: item.category,
+      description: item.description,
+      pricing_mode: item.pricing_mode,
+      quantity: item.quantity,
+      unit: item.unit,
+      unit_price: item.unit_price,
+      metros_por_salida: item.metros_por_salida,
+      discount_pct: item.discount_pct,
+      subtotal: item.subtotal || 0,
+      discount_amount: item.discount_amount || 0,
+      total: item.total || 0,
+      notes: item.notes || null,
+      apu_materiales: item.apu_materiales || 0,
+      apu_mano_obra: item.apu_mano_obra || 0,
+      apu_equipo: item.apu_equipo || 0,
+      apu_transporte: item.apu_transporte || 0,
+      apu_indirectos: item.apu_indirectos || 0,
+      is_from_apu: item.is_from_apu ?? false,
+      tipo_item: item.tipo_item || null,
+      sort_order: idx,
+    }));
+
+  // FUNCIÓN DE CÁLCULO INLINE (garantiza valor real en el instante del click)
+  const computeTotal = () => {
+    const sub = items.reduce((acc, item) => {
       const qty = item.quantity;
       const price = item.unit_price;
       const mts = item.metros_por_salida || 7;
@@ -585,138 +611,111 @@ function NuevoPresupuestoContent() {
       const discount = subItem * (item.discount_pct / 100);
       return acc + subItem - discount;
     }, 0);
-    const admCalc = admonEnabled ? Math.round(subCalc * (admonPct / 100)) : 0;
-    const impCalc = imprevistosEnabled ? Math.round(subCalc * (imprevistosPct / 100)) : 0;
-    const utiCalc = utilidadEnabled ? Math.round(subCalc * (utilidadPct / 100)) : 0;
-    const baseCalc = subCalc + admCalc + impCalc + utiCalc;
-    const ivCalc = ivaEnabled ? Math.round(baseCalc * (ivaPct / 100)) : 0;
-    const rtCalc = retencionEnabled ? Math.round(baseCalc * (retencionPct / 100)) : 0;
-    const totalConImpuestos = Math.round(baseCalc + ivCalc - rtCalc);
+    const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
+    const imp = imprevistosEnabled ? Math.round(sub * (imprevistosPct / 100)) : 0;
+    const uti = utilidadEnabled ? Math.round(sub * (utilidadPct / 100)) : 0;
+    const base = sub + adm + imp + uti;
+    const iv = ivaEnabled ? Math.round(base * (ivaPct / 100)) : 0;
+    const rt = retencionEnabled ? Math.round(base * (retencionPct / 100)) : 0;
+    return { sub, adm, imp, uti, base, iv, rt, total: Math.round(base + iv - rt) };
+  };
 
-    console.log("🔍 DEBUG guardarPresupuesto (inline):", {
-      subtotal: subCalc,
-      admon: { enabled: admonEnabled, pct: admonPct, amount: admCalc },
-      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: impCalc },
-      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: utiCalc },
-      iva: { enabled: ivaEnabled, pct: ivaPct, amount: ivCalc },
-      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: rtCalc },
-      baseAIU: baseCalc,
-      totalConImpuestos,
-      totalRef_current: totalRef.current,
-      totalFinal_state: totalFinal,
-      itemsCount: items.length,
-    });
+  // UPDATE — Solo para edición (nunca dispara INSERT)
+  const handleUpdate = async () => {
+    const budgetId = editBudgetId;
+    if (!budgetId) {
+      console.error("⛔ handleUpdate llamada sin editBudgetId — abortando");
+      setError("Error: no se encontró el ID del presupuesto a editar.");
+      return;
+    }
+
+    const calc = computeTotal();
+    console.log("🔍 DEBUG handleUpdate:", calc, { editBudgetId: budgetId, itemsCount: items.length });
+
+    // VALIDACIÓN DE SEGURIDAD — nunca enviar $0
+    if (!calc.total || calc.total === 0) {
+      console.error("⛔ ABORTING handleUpdate: total calculado es $0 — posible race condition");
+      setError("Error: el total calculado es $0. Revise los ítems.");
+      return;
+    }
+
+    const budgetPayload = { ...payloadComun(), total: calc.total };
+    console.log("🚀 PAYLOAD Supabase (UPDATE):", budgetPayload);
+
+    const { error: budgetError, data: updatedData } = await supabase
+      .from("budgets")
+      .update(budgetPayload)
+      .eq("id", budgetId)
+      .select();
+
+    console.log("📥 Respuesta Supabase (UPDATE):", { error: budgetError, data: updatedData });
+
+    if (budgetError) throw budgetError;
+
+    // Reemplazar items
+    await supabase.from("budget_items").delete().eq("budget_id", budgetId);
+    const itemsPayload = buildItemsPayload(budgetId);
+    if (itemsPayload.length > 0) {
+      await supabase.from("budget_items").insert(itemsPayload);
+    }
+
+    setSuccess("¡Presupuesto actualizado exitosamente!");
+  };
+
+  // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
+  const handleCreate = async () => {
+    if (editBudgetId) {
+      console.error("⛔ handleCreate llamada con editBudgetId activo — posible race condition, redirigiendo a handleUpdate");
+      return handleUpdate();
+    }
+
+    const calc = computeTotal();
+    console.log("🔍 DEBUG handleCreate:", calc, { itemsCount: items.length });
+
+    // VALIDACIÓN DE SEGURIDAD
+    if (!calc.total || calc.total === 0) {
+      console.error("⛔ ABORTING handleCreate: total calculado es $0");
+      setError("Error: el total calculado es $0. Agregue ítems con precios.");
+      return;
+    }
+
+    const budgetPayload = { ...payloadComun(), total: calc.total, status: "pendiente" };
+    console.log("🚀 PAYLOAD Supabase (INSERT):", budgetPayload);
+
+    const { data: budgetData, error: budgetError } = await supabase
+      .from("budgets")
+      .insert(budgetPayload)
+      .select()
+      .single();
+
+    console.log("📥 Respuesta Supabase (INSERT):", { error: budgetError, data: budgetData });
+
+    if (budgetError) throw budgetError;
+    if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
+
+    const itemsPayload = buildItemsPayload(budgetData.id);
+    if (itemsPayload.length > 0) {
+      await supabase.from("budget_items").insert(itemsPayload);
+    }
+
+    setSuccess("¡Presupuesto guardado exitosamente!");
+  };
+
+  // PUNTO DE ENTRADA ÚNICO — despacha a handleUpdate o handleCreate según editBudgetId
+  const guardarPresupuesto = async () => {
+    if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
+    if (!projectName.trim()) { setError("Ingrese el nombre del proyecto."); return; }
+    if (!clientName) { setError("Seleccione o ingrese un cliente."); return; }
+    setError(null);
+    setGuardando(true);
+
+    console.log("🔄 guardarPresupuesto — modo:", editBudgetId ? "UPDATE" : "INSERT", "| editBudgetId:", editBudgetId);
 
     try {
       if (editBudgetId) {
-        // ACTUALIZAR presupuesto existente
-        console.log("🚀 PAYLOAD Supabase (UPDATE):", { id: editBudgetId, total: totalConImpuestos, number, clientName, projectName });
-
-        const { error: budgetError, data: updatedData } = await supabase
-          .from("budgets")
-          .update({
-            number: number,
-            client_name: clientName,
-            project_name: projectName,
-            issue_date: issueDate,
-            valid_until: validUntil,
-            total: totalConImpuestos,
-          })
-          .eq("id", editBudgetId)
-          .select();
-
-        console.log("📥 Respuesta Supabase (UPDATE):", { error: budgetError, data: updatedData });
-
-        if (budgetError) throw budgetError;
-
-        // Eliminar items viejos
-        await supabase.from("budget_items").delete().eq("budget_id", editBudgetId);
-
-        // Re-insertar items
-        try {
-          const itemsToInsert = items.map((item, idx) => ({
-            budget_id: editBudgetId,
-            category: item.category,
-            description: item.description,
-            pricing_mode: item.pricing_mode,
-            quantity: item.quantity,
-            unit: item.unit,
-            unit_price: item.unit_price,
-            metros_por_salida: item.metros_por_salida,
-            discount_pct: item.discount_pct,
-            subtotal: item.subtotal,
-            discount_amount: item.discount_amount,
-            total: item.total,
-            notes: item.notes,
-            apu_materiales: item.apu_materiales || 0,
-            apu_mano_obra: item.apu_mano_obra || 0,
-            apu_equipo: item.apu_equipo || 0,
-            apu_transporte: item.apu_transporte || 0,
-            apu_indirectos: item.apu_indirectos || 0,
-            is_from_apu: item.is_from_apu ?? false,
-            tipo_item: item.tipo_item || null,
-            sort_order: idx,
-          }));
-          await supabase.from("budget_items").insert(itemsToInsert);
-        } catch (itemErr: any) {
-          console.warn("Items no guardados:", itemErr.message);
-        }
-
-        setSuccess("¡Presupuesto actualizado exitosamente!");
+        await handleUpdate();
       } else {
-        // CREAR nuevo presupuesto
-        console.log("🚀 PAYLOAD Supabase (INSERT):", { total: totalConImpuestos, number, clientName, projectName, status: "pendiente" });
-
-        const { data: budgetData, error: budgetError } = await supabase
-          .from("budgets")
-          .insert({
-            number: number,
-            client_name: clientName,
-            project_name: projectName,
-            issue_date: issueDate,
-            valid_until: validUntil,
-            total: totalConImpuestos,
-            status: "pendiente",
-          })
-          .select()
-          .single();
-
-        console.log("📥 Respuesta Supabase (INSERT):", { error: budgetError, data: budgetData });
-
-        if (budgetError) throw budgetError;
-        if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
-
-        // Insertar items
-        try {
-          const itemsToInsert = items.map((item, idx) => ({
-            budget_id: budgetData.id,
-            category: item.category,
-            description: item.description,
-            pricing_mode: item.pricing_mode,
-            quantity: item.quantity,
-            unit: item.unit,
-            unit_price: item.unit_price,
-            metros_por_salida: item.metros_por_salida,
-            discount_pct: item.discount_pct,
-            subtotal: item.subtotal,
-            discount_amount: item.discount_amount,
-            total: item.total,
-            notes: item.notes,
-            apu_materiales: item.apu_materiales || 0,
-            apu_mano_obra: item.apu_mano_obra || 0,
-            apu_equipo: item.apu_equipo || 0,
-            apu_transporte: item.apu_transporte || 0,
-            apu_indirectos: item.apu_indirectos || 0,
-            is_from_apu: item.is_from_apu ?? false,
-            tipo_item: item.tipo_item || null,
-            sort_order: idx,
-          }));
-          await supabase.from("budget_items").insert(itemsToInsert);
-        } catch (itemErr: any) {
-          console.warn("Items no guardados:", itemErr.message);
-        }
-
-        setSuccess("¡Presupuesto guardado exitosamente!");
+        await handleCreate();
       }
       setTimeout(() => {
         router.push("/dashboard/presupuestos");
@@ -743,28 +742,6 @@ function NuevoPresupuestoContent() {
   // ITEMS AGRUPADOS POR CATEGORÍA
   // =========================================================================
 
-
-  // =========================================================================
-  // CALCULADORA DE TOTAL FINAL (función pura — evita stale state)
-  // =========================================================================
-
-  const calculateTotal = () => {
-    const sub = items.reduce((acc, item) => {
-      const qty = item.quantity;
-      const price = item.unit_price;
-      const mts = item.metros_por_salida || 7;
-      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
-      const discount = subItem * (item.discount_pct / 100);
-      return acc + subItem - discount;
-    }, 0);
-    const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
-    const imp = imprevistosEnabled ? Math.round(sub * (imprevistosPct / 100)) : 0;
-    const uti = utilidadEnabled ? Math.round(sub * (utilidadPct / 100)) : 0;
-    const base = sub + adm + imp + uti;
-    const iv = ivaEnabled ? Math.round(base * (ivaPct / 100)) : 0;
-    const rt = retencionEnabled ? Math.round(base * (retencionPct / 100)) : 0;
-    return { sub, adm, imp, uti, base, iv, rt, total: Math.round(base + iv - rt) };
-  };
 
   // =========================================================================
   // COMPONENTE AUXILIAR: LiquidacionRow
