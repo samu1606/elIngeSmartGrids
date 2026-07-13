@@ -18,7 +18,8 @@ import {
   TrendingUp,
   FileCheck,
   FilePlus,
-  FlaskConical
+  FlaskConical,
+  Pencil
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -543,6 +544,13 @@ export default function PresupuestosPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => router.push(`/dashboard/presupuestos/nuevo?edit=${budget.id}`)}
+                        className="text-slate-350 hover:text-primary hover:bg-primary/5 p-1.5 rounded-lg transition-colors cursor-pointer"
+                        title="Editar presupuesto"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
                       <button 
                         onClick={() => handleDeleteBudget(budget.id)}
                         className="text-slate-350 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Fragment, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getApiUrl } from "@/lib/api";
 import {
@@ -147,8 +147,10 @@ function calcularAPU(precioTotal: number, categoria: string) {
 // PÁGINA PRINCIPAL
 // =============================================================================
 
-export default function NuevoPresupuestoPage() {
+function NuevoPresupuestoContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editBudgetId = searchParams.get('edit');
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
@@ -218,8 +220,9 @@ export default function NuevoPresupuestoPage() {
     loadData();
   }, [apiUrl]);
 
-  // Auto-numeración
+  // Auto-numeración (solo para presupuestos nuevos)
   useEffect(() => {
+    if (editBudgetId) return; // no generar nuevo número si estamos editando
     const loadLastNumber = async () => {
       try {
         const { data } = await supabase
@@ -245,7 +248,70 @@ export default function NuevoPresupuestoPage() {
       }
     };
     loadLastNumber();
-  }, [supabase]);
+  }, [supabase, editBudgetId]); // re-ejecutar si cambia editBudgetId
+
+  // Cargar presupuesto para edición
+  useEffect(() => {
+    if (!editBudgetId) return;
+    const loadBudget = async () => {
+      try {
+        const { data: budget } = await supabase
+          .from("budgets")
+          .select("*")
+          .eq("id", editBudgetId)
+          .single();
+
+        if (!budget) return;
+
+        // Poblar campos del formulario
+        setNumber(budget.number);
+        setClientName(budget.client_name);
+        setProjectName(budget.project_name);
+        if (budget.client_nit) setClientNit(budget.client_nit);
+        if (budget.client_address) setClientAddress(budget.client_address);
+        if (budget.client_phone) setClientPhone(budget.client_phone);
+        if (budget.client_email) setClientEmail(budget.client_email);
+        if (budget.project_address) setProjectAddress(budget.project_address);
+
+        // Cargar items
+        const { data: budgetItems } = await supabase
+          .from("budget_items")
+          .select("*")
+          .eq("budget_id", editBudgetId)
+          .order("sort_order");
+
+        if (budgetItems && budgetItems.length > 0) {
+          const loadedItems: BudgetItem[] = budgetItems.map((bi: any) => ({
+            id: bi.id?.toString() || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            category: bi.category || "otro",
+            description: bi.description || "",
+            pricing_mode: bi.pricing_mode || "por_salida",
+            quantity: bi.quantity || 1,
+            unit: bi.unit || "und",
+            unit_price: bi.unit_price || 0,
+            metros_por_salida: bi.metros_por_salida || null,
+            apu_materiales: bi.apu_materiales || 0,
+            apu_mano_obra: bi.apu_mano_obra || 0,
+            apu_equipo: bi.apu_equipo || 0,
+            apu_transporte: bi.apu_transporte || 0,
+            apu_indirectos: bi.apu_indirectos || 0,
+            apu_expanded: false,
+            is_from_apu: bi.is_from_apu ?? false,
+            tipo_item: bi.tipo_item || 'insumo_directo',
+            subtotal: bi.subtotal || 0,
+            discount_pct: bi.discount_pct || 0,
+            discount_amount: bi.discount_amount || 0,
+            total: bi.total || 0,
+            notes: bi.notes || null,
+          }));
+          setItems(loadedItems);
+        }
+      } catch (err) {
+        console.warn("Error cargando presupuesto para editar:", err);
+      }
+    };
+    loadBudget();
+  }, [editBudgetId, supabase]);
 
   // Cargar clientes y proyectos para los selects
   useEffect(() => {
@@ -508,48 +574,107 @@ export default function NuevoPresupuestoPage() {
     setGuardando(true);
 
     try {
-      const { data: budgetData, error: budgetError } = await supabase
-        .from("budgets")
-        .insert({
-          number: calculatedBudget.number,
-          client_name: calculatedBudget.client_name,
-          project_name: calculatedBudget.project_name,
-          issue_date: calculatedBudget.issue_date,
-          valid_until: calculatedBudget.valid_until,
-          total: calculatedBudget.total_final,
-          status: "pendiente",
-        })
-        .select()
-        .single();
+      if (editBudgetId) {
+        // ACTUALIZAR presupuesto existente
+        const { error: budgetError } = await supabase
+          .from("budgets")
+          .update({
+            number: calculatedBudget.number,
+            client_name: calculatedBudget.client_name,
+            project_name: calculatedBudget.project_name,
+            issue_date: calculatedBudget.issue_date,
+            valid_until: calculatedBudget.valid_until,
+            total: calculatedBudget.total_final,
+          })
+          .eq("id", editBudgetId);
 
-      if (budgetError) throw budgetError;
-      if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
+        if (budgetError) throw budgetError;
 
-      // Insertar items (si la tabla existe)
-      try {
-        const itemsToInsert = calculatedBudget.items.map((item, idx) => ({
-          budget_id: budgetData.id,
-          category: item.category,
-          description: item.description,
-          pricing_mode: item.pricing_mode,
-          quantity: item.quantity,
-          unit: item.unit,
-          unit_price: item.unit_price,
-          metros_por_salida: item.metros_por_salida,
-          discount_pct: item.discount_pct,
-          subtotal: item.subtotal,
-          discount_amount: item.discount_amount,
-          total: item.total,
-          notes: item.notes,
-          sort_order: idx,
-        }));
+        // Eliminar items viejos
+        await supabase.from("budget_items").delete().eq("budget_id", editBudgetId);
 
-        await supabase.from("budget_items").insert(itemsToInsert);
-      } catch (itemErr: any) {
-        console.warn("Items no guardados (tabla budget_items puede no existir aún):", itemErr.message);
+        // Re-insertar items
+        try {
+          const itemsToInsert = calculatedBudget.items.map((item, idx) => ({
+            budget_id: editBudgetId,
+            category: item.category,
+            description: item.description,
+            pricing_mode: item.pricing_mode,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: item.unit_price,
+            metros_por_salida: item.metros_por_salida,
+            apu_materiales: item.apu_materiales,
+            apu_mano_obra: item.apu_mano_obra,
+            apu_equipo: item.apu_equipo,
+            apu_transporte: item.apu_transporte,
+            apu_indirectos: item.apu_indirectos,
+            is_from_apu: item.is_from_apu ?? false,
+            tipo_item: item.tipo_item || null,
+            discount_pct: item.discount_pct,
+            subtotal: item.subtotal,
+            discount_amount: item.discount_amount,
+            total: item.total,
+            notes: item.notes,
+            sort_order: idx,
+          }));
+          await supabase.from("budget_items").insert(itemsToInsert);
+        } catch (itemErr: any) {
+          console.warn("Items no actualizados:", itemErr.message);
+        }
+
+        setSuccess("¡Presupuesto actualizado exitosamente!");
+      } else {
+        // CREAR nuevo presupuesto
+        const { data: budgetData, error: budgetError } = await supabase
+          .from("budgets")
+          .insert({
+            number: calculatedBudget.number,
+            client_name: calculatedBudget.client_name,
+            project_name: calculatedBudget.project_name,
+            issue_date: calculatedBudget.issue_date,
+            valid_until: calculatedBudget.valid_until,
+            total: calculatedBudget.total_final,
+            status: "pendiente",
+          })
+          .select()
+          .single();
+
+        if (budgetError) throw budgetError;
+        if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
+
+        // Insertar items
+        try {
+          const itemsToInsert = calculatedBudget.items.map((item, idx) => ({
+            budget_id: budgetData.id,
+            category: item.category,
+            description: item.description,
+            pricing_mode: item.pricing_mode,
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: item.unit_price,
+            metros_por_salida: item.metros_por_salida,
+            apu_materiales: item.apu_materiales,
+            apu_mano_obra: item.apu_mano_obra,
+            apu_equipo: item.apu_equipo,
+            apu_transporte: item.apu_transporte,
+            apu_indirectos: item.apu_indirectos,
+            is_from_apu: item.is_from_apu ?? false,
+            tipo_item: item.tipo_item || null,
+            discount_pct: item.discount_pct,
+            subtotal: item.subtotal,
+            discount_amount: item.discount_amount,
+            total: item.total,
+            notes: item.notes,
+            sort_order: idx,
+          }));
+          await supabase.from("budget_items").insert(itemsToInsert);
+        } catch (itemErr: any) {
+          console.warn("Items no guardados:", itemErr.message);
+        }
+
+        setSuccess("¡Presupuesto guardado exitosamente!");
       }
-
-      setSuccess("¡Presupuesto guardado exitosamente!");
       setTimeout(() => {
         router.push("/dashboard/presupuestos");
       }, 1500);
@@ -589,7 +714,7 @@ export default function NuevoPresupuestoPage() {
             <ArrowLeft className="h-3.5 w-3.5" /> Volver a Presupuestos
           </button>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight font-display flex items-center gap-2">
-            <FileText className="h-7 w-7 text-primary" /> Nuevo Presupuesto
+            <FileText className="h-7 w-7 text-primary" /> {editBudgetId ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
           </h1>
         </div>
       </div>
@@ -895,7 +1020,7 @@ export default function NuevoPresupuestoPage() {
           <div className="border-t border-slate-200 px-6 py-3 flex justify-end gap-3 bg-white">
             <button onClick={() => setCalculatedBudget(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all cursor-pointer">Nuevo Cálculo</button>
             <button onClick={guardarPresupuesto} disabled={guardando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2 text-xs font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shadow-sm">
-              {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando...</> : <><Save className="h-4 w-4" /> Guardar Presupuesto</>}
+              {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> {editBudgetId ? 'Actualizando...' : 'Guardando...'}</> : <><Save className="h-4 w-4" /> {editBudgetId ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</>}
             </button>
           </div>
         </div>
@@ -907,5 +1032,13 @@ export default function NuevoPresupuestoPage() {
         onAddAPU={handleAgregarAPU}
       />
     </div>
+  );
+}
+
+export default function NuevoPresupuestoPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-slate-400">Cargando editor de presupuesto...</div>}>
+      <NuevoPresupuestoContent />
+    </Suspense>
   );
 }
