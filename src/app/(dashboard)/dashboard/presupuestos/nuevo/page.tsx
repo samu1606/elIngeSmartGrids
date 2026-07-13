@@ -715,7 +715,13 @@ function NuevoPresupuestoContent() {
     }
 
     setSuccess("¡Presupuesto actualizado exitosamente!");
-    sessionStorage.removeItem('editingBudgetId'); // limpiar puente
+    sessionStorage.removeItem('editingBudgetId');
+
+    // Redirección DURA — previene que React remonte el componente y dispare INSERT fantasma
+    // window.location.href fuerza recarga completa, matando cualquier estado residual
+    setTimeout(() => {
+      window.location.href = '/dashboard/presupuestos';
+    }, 800);
   };
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
