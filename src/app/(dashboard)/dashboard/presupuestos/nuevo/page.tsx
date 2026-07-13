@@ -19,7 +19,10 @@ import {
   Package,
   ChevronRight,
   Wrench,
+  FlaskConical,
 } from "lucide-react";
+import SelectorAPU from "@/components/presupuestos/SelectorAPU";
+import type { APUCompleto } from "@/lib/supabase/apus";
 
 // =============================================================================
 // TIPOS
@@ -418,6 +421,53 @@ export default function NuevoPresupuestoPage() {
       total: 0,
       notes: null,
     };
+    setItems([...items, newItem]);
+    setCalculatedBudget(null);
+  };
+
+  // =========================================================================
+  // AGREGAR APU DESDE BIBLIOTECA (FASE 2)
+  // =========================================================================
+
+  const handleAgregarAPU = (apuCompleto: APUCompleto) => {
+    // Calcular desglose por tipo de insumo
+    const sumByType = (tipo: string) =>
+      apuCompleto.detalles
+        .filter((d) => d.insumos?.tipo === tipo)
+        .reduce(
+          (s, d) => s + (d.cantidad_rendimiento || 0) * (d.insumos?.precio_unitario || 0),
+          0
+        );
+
+    const newItem: BudgetItem = {
+      id: `apu-${apuCompleto.apu.id}-${Date.now()}`,
+      category: "otro",
+      description: `${apuCompleto.apu.codigo} — ${apuCompleto.apu.descripcion}`,
+      pricing_mode: "por_salida",
+      quantity: 1,
+      unit: apuCompleto.apu.unidad,
+      unit_price: Math.round(apuCompleto.costoTotal),
+      metros_por_salida: null,
+      apu_materiales: Math.round(sumByType("material")),
+      apu_mano_obra: Math.round(sumByType("mano_obra")),
+      apu_equipo: Math.round(sumByType("equipo")),
+      apu_transporte: Math.round(sumByType("transporte")),
+      apu_indirectos: 0,
+      apu_expanded: false,
+      subtotal: 0,
+      discount_pct: 0,
+      discount_amount: 0,
+      total: 0,
+      notes: JSON.stringify(
+        apuCompleto.detalles.map((d) => ({
+          insumo: d.insumos?.descripcion,
+          cantidad: d.cantidad_rendimiento,
+          precio: d.insumos?.precio_unitario,
+          tipo: d.insumos?.tipo,
+        }))
+      ),
+    };
+
     setItems([...items, newItem]);
     setCalculatedBudget(null);
   };
@@ -831,6 +881,11 @@ export default function NuevoPresupuestoPage() {
           )}
         </div>
       </div>
+
+      {/* ================================================================ */}
+      {/* SELECTOR DE APU — Biblioteca de APUs predefinidos */}
+      {/* ================================================================ */}
+      <SelectorAPU onAgregarAPU={handleAgregarAPU} />
 
       {/* ================================================================ */}
       {/* ÍTEMS DEL PRESUPUESTO — EL DINERO MANDA */}

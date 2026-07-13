@@ -17,7 +17,8 @@ import {
   XCircle,
   TrendingUp,
   FileCheck,
-  FilePlus
+  FilePlus,
+  FlaskConical
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -391,6 +392,14 @@ export default function PresupuestosPage() {
           >
             <Plus className="h-4.5 w-4.5 stroke-[2px]" />
             <span>Registrar externo</span>
+          </button>
+          <button 
+            onClick={() => router.push("/dashboard/presupuestos/constructor-apu")}
+            type="button"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5 text-xs font-bold text-primary hover:bg-primary/10 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+          >
+            <FlaskConical className="h-4.5 w-4.5 stroke-[2px]" />
+            <span>Constructor de APU</span>
           </button>
           <button 
             onClick={() => router.push("/dashboard/presupuestos/nuevo")}
