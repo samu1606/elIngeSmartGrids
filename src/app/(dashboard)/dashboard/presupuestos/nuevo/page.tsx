@@ -715,7 +715,7 @@ export default function NuevoPresupuestoPage() {
                   <tr className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2">
                       <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-xs text-slate-800 outline-none font-semibold" />
-                      {!item.is_from_apu && (item.apu_materiales > 0 || item.apu_mano_obra > 0) && (
+                      {!item.is_from_apu && (
                         <button
                           type="button"
                           onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
