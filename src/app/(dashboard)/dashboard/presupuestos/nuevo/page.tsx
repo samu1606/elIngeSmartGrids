@@ -717,10 +717,11 @@ function NuevoPresupuestoContent() {
       itemsCount: items.length,
     });
 
-    // VALIDACIÓN DE SEGURIDAD — nunca enviar $0
+    // VALIDACIÓN RADICAL — alert() visible, imposible de ignorar
     if (!valorTotalFinal || valorTotalFinal <= 0) {
-      console.error("⛔ ABORTING handleUpdate: valorTotalFinal es $0 o negativo");
-      setError("Error: el total calculado es $0. Revise los ítems y los precios.");
+      const msg = "⛔ Error: El total calculado es $0. Revise los ítems y los precios antes de guardar.";
+      console.error(msg, { itemsCount: items.length, items: items.map(i => ({ qty: i.quantity, price: i.unit_price })) });
+      alert(msg);
       return;
     }
 
@@ -801,8 +802,9 @@ function NuevoPresupuestoContent() {
     console.log("🔍 DEBUG handleCreate INLINE:", { subtotal: subtotalNum, valorTotalFinal, itemsCount: items.length });
 
     if (!valorTotalFinal || valorTotalFinal <= 0) {
-      console.error("⛔ ABORTING handleCreate: valorTotalFinal es $0");
-      setError("Error: el total calculado es $0. Agregue ítems con precios.");
+      const msg = "⛔ Error: El total calculado es $0. Agregue ítems con precios antes de guardar.";
+      console.error(msg, { itemsCount: items.length, items: items.map(i => ({ qty: i.quantity, price: i.unit_price })) });
+      alert(msg);
       return;
     }
 
