@@ -14,13 +14,10 @@ import {
   AlertCircle,
   CheckCircle,
   FileText,
-  User,
-  Building2,
-  Package,
-  ChevronRight,
   Wrench,
+  PenTool,
 } from "lucide-react";
-import SelectorAPU from "@/components/presupuestos/SelectorAPU";
+import AddItemModal, { type BudgetItemFromModal } from "@/components/presupuestos/AddItemModal";
 import type { APUCompleto } from "@/lib/supabase/apus";
 
 // =============================================================================
@@ -114,87 +111,6 @@ const UNITS_BY_PRICING: Record<string, string[]> = {
 // CATÁLOGO ELÉCTRICO JERÁRQUICO — Opciones reales de ingeniería
 // =============================================================================
 
-interface CatalogoOpcion {
-  label: string;
-  descripcion: string;
-  precio: number;
-  pricing_mode: "por_salida" | "por_ml";
-  unit: string;
-  category: string;
-  metros_por_salida?: number;
-  apu_materiales?: number;
-  apu_mano_obra?: number;
-  apu_equipo?: number;
-  apu_transporte?: number;
-  apu_indirectos?: number;
-}
-
-const CATALOGO_ELECTRICO: Record<string, CatalogoOpcion[]> = {
-  "Tableros y Gabinetes": [
-    { label: "Monofásico 6CTOS", descripcion: "Tablero monofásico 6 circuitos, empotrable", precio: 85000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Monofásico 12CTOS", descripcion: "Tablero monofásico 12 circuitos, empotrable", precio: 145000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Monofásico 18CTOS", descripcion: "Tablero monofásico 18 circuitos, superficie", precio: 210000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Bifásico 12CTOS", descripcion: "Tablero bifásico 12 circuitos, empotrable", precio: 195000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Bifásico 18CTOS", descripcion: "Tablero bifásico 18 circuitos, superficie", precio: 260000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Bifásico 24CTOS", descripcion: "Tablero bifásico 24 circuitos, superficie", precio: 350000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Trifásico 8CTOS (con totalizador)", descripcion: "Tablero trifásico 8 circuitos con espacio para totalizador", precio: 280000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Trifásico 8CTOS (sin totalizador)", descripcion: "Tablero trifásico 8 circuitos sin espacio totalizador", precio: 220000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Trifásico 12CTOS (con totalizador)", descripcion: "Tablero trifásico 12 circuitos con espacio para totalizador", precio: 380000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-    { label: "Gabinete metálico 24CTOS", descripcion: "Gabinete metálico para 24 circuitos, IP55", precio: 520000, pricing_mode: "por_salida", unit: "und", category: "tablero" },
-  ],
-  "Breakers y Protecciones": [
-    { label: "Breaker 1P 15A", descripcion: "Breaker riel DIN 1 polo 15A, curva C", precio: 18500, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 1P 20A", descripcion: "Breaker riel DIN 1 polo 20A, curva C", precio: 19500, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 1P 30A", descripcion: "Breaker riel DIN 1 polo 30A, curva C", precio: 22000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 2P 30A", descripcion: "Breaker riel DIN 2 polos 30A, curva C", precio: 35000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 2P 50A", descripcion: "Breaker riel DIN 2 polos 50A, curva C", precio: 45000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 2P 63A", descripcion: "Breaker riel DIN 2 polos 63A, curva C", precio: 55000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 3P 50A", descripcion: "Breaker caja moldeada 3 polos 50A", precio: 120000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Breaker 3P 100A", descripcion: "Breaker caja moldeada 3 polos 100A", precio: 195000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Totalizador 2P 100A", descripcion: "Totalizador general 2 polos 100A", precio: 85000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Totalizador 3P 125A", descripcion: "Totalizador general 3 polos 125A", precio: 160000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-    { label: "Prot. sobretensión 2P", descripcion: "DPS Clase II 2 polos 40kA", precio: 95000, pricing_mode: "por_salida", unit: "und", category: "breaker" },
-  ],
-  "Salidas (Tomacorrientes e Iluminación)": [
-    { label: "Toma doble estándar", descripcion: "Tomacorriente doble 15A/125V, placa blanca", precio: 15000, pricing_mode: "por_salida", unit: "salida", category: "tomacorriente", metros_por_salida: 7 },
-    { label: "Toma GFCI 20A", descripcion: "Tomacorriente GFCI 20A protección falla a tierra", precio: 45000, pricing_mode: "por_salida", unit: "salida", category: "tomacorriente", metros_por_salida: 7 },
-    { label: "Toma doble + USB", descripcion: "Tomacorriente doble con puertos USB-A y USB-C", precio: 38000, pricing_mode: "por_salida", unit: "salida", category: "tomacorriente", metros_por_salida: 7 },
-    { label: "Punto iluminación LED", descripcion: "Salida para luminaria LED 120V con interruptor", precio: 28000, pricing_mode: "por_salida", unit: "salida", category: "iluminacion", metros_por_salida: 5 },
-    { label: "Punto iluminación + conmutador", descripcion: "Salida iluminación con interruptor conmutable (escalera)", precio: 45000, pricing_mode: "por_salida", unit: "salida", category: "iluminacion", metros_por_salida: 8 },
-    { label: "Interruptor sencillo", descripcion: "Interruptor sencillo 15A/125V", precio: 12000, pricing_mode: "por_salida", unit: "und", category: "iluminacion" },
-    { label: "Interruptor doble", descripcion: "Interruptor doble 15A/125V", precio: 18000, pricing_mode: "por_salida", unit: "und", category: "iluminacion" },
-    { label: "Sensor de movimiento", descripcion: "Sensor de movimiento 180° para iluminación", precio: 55000, pricing_mode: "por_salida", unit: "und", category: "iluminacion" },
-  ],
-  "Cableado (por metro lineal)": [
-    { label: "12 AWG THHN Cu", descripcion: "Cable de cobre 12 AWG THHN/THWN 600V", precio: 2800, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "10 AWG THHN Cu", descripcion: "Cable de cobre 10 AWG THHN/THWN 600V", precio: 4200, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "8 AWG THHN Cu", descripcion: "Cable de cobre 8 AWG THHN/THWN 600V", precio: 7500, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "6 AWG THHN Cu", descripcion: "Cable de cobre 6 AWG THHN/THWN 600V", precio: 11000, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "4 AWG THHN Cu", descripcion: "Cable de cobre 4 AWG THHN/THWN 600V", precio: 18000, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "2 AWG THHN Cu", descripcion: "Cable de cobre 2 AWG THHN/THWN 600V", precio: 28000, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-    { label: "6 AWG Cu Desnudo", descripcion: "Cable de cobre desnudo 6 AWG para puesta a tierra", precio: 6500, pricing_mode: "por_ml", unit: "ml", category: "cableado" },
-  ],
-  "Canalización (Tubería)": [
-    { label: "PVC 1/2\"", descripcion: "Tubería PVC conduit 1/2 pulgada", precio: 2500, pricing_mode: "por_ml", unit: "ml", category: "canalizacion" },
-    { label: "PVC 3/4\"", descripcion: "Tubería PVC conduit 3/4 pulgada", precio: 3500, pricing_mode: "por_ml", unit: "ml", category: "canalizacion" },
-    { label: "PVC 1\"", descripcion: "Tubería PVC conduit 1 pulgada", precio: 5000, pricing_mode: "por_ml", unit: "ml", category: "canalizacion" },
-    { label: "PVC 1-1/2\"", descripcion: "Tubería PVC conduit 1-1/2 pulgada", precio: 7500, pricing_mode: "por_ml", unit: "ml", category: "canalizacion" },
-    { label: "Bandeja portacable 20cm", descripcion: "Bandeja portacable metálica 20cm ancho", precio: 35000, pricing_mode: "por_ml", unit: "ml", category: "canalizacion" },
-  ],
-  "Mano de Obra": [
-    { label: "Hora electricista certificado", descripcion: "Mano de obra electricista certificado RETIE", precio: 35000, pricing_mode: "por_salida", unit: "hora", category: "mano_obra" },
-    { label: "Hora ayudante técnico", descripcion: "Mano de obra ayudante técnico eléctrico", precio: 18000, pricing_mode: "por_salida", unit: "hora", category: "mano_obra" },
-    { label: "Instalación tablero", descripcion: "Mano de obra instalación y cableado de tablero", precio: 180000, pricing_mode: "por_salida", unit: "global", category: "mano_obra" },
-    { label: "Certificación RETIE", descripcion: "Elaboración de certificado RETIE de conformidad", precio: 280000, pricing_mode: "por_salida", unit: "global", category: "inspeccion" },
-  ],
-  "Diseño e Ingeniería": [
-    { label: "Diseño eléctrico básico", descripcion: "Diseño eléctrico para instalación ≤10kVA (simplificado)", precio: 450000, pricing_mode: "por_salida", unit: "global", category: "diseno" },
-    { label: "Diseño eléctrico detallado", descripcion: "Diseño completo RETIE Art. 3.3.1.1 (>10kVA)", precio: 850000, pricing_mode: "por_salida", unit: "global", category: "diseno" },
-    { label: "Inspección RETIE (visita)", descripcion: "Visita de inspección y verificación RETIE en sitio", precio: 150000, pricing_mode: "por_salida", unit: "visita", category: "inspeccion" },
-    { label: "Diagrama unifilar", descripcion: "Elaboración de diagrama unifilar NTC 2050", precio: 120000, pricing_mode: "por_salida", unit: "und", category: "diseno" },
-  ],
-};
-
 
 // =============================================================================
 // APU — Análisis de Precios Unitarios (Plantillas por categoría)
@@ -233,16 +149,6 @@ function calcularAPU(precioTotal: number, categoria: string) {
 }
 
 // Iconos por categoría para el catálogo
-const ICONOS_CATEGORIA: Record<string, string> = {
-  "Tableros y Gabinetes": "⚡",
-  "Breakers y Protecciones": "🔌",
-  "Salidas (Tomacorrientes e Iluminación)": "💡",
-  "Cableado (por metro lineal)": "🔗",
-  "Canalización (Tubería)": "🔧",
-  "Mano de Obra": "👷",
-  "Diseño e Ingeniería": "📐",
-};
-
 // PÁGINA PRINCIPAL
 // =============================================================================
 
@@ -285,12 +191,12 @@ export default function NuevoPresupuestoPage() {
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
   const [metrosOptions, setMetrosOptions] = useState<number[]>([5, 6, 7, 8, 9, 10, 11]);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(true);
   const [calculando, setCalculando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [categoriaExpandida, setCategoriaExpandida] = useState<string | null>(null);
 
   // Cargar catálogo y config
   useEffect(() => {
@@ -364,55 +270,25 @@ export default function NuevoPresupuestoPage() {
   }, [supabase]);
 
   // =========================================================================
-  // AGREGAR ÍTEM DESDE CATÁLOGO
+  // AGREGAR ÍTEM DESDE MODAL (catálogo)
   // =========================================================================
 
-  const addItemFromCatalogo = (opcion: CatalogoOpcion) => {
-    const apu = calcularAPU(opcion.precio, opcion.category);
+  const handleAddItemFromModal = (item: BudgetItemFromModal) => {
+    const apu = calcularAPU(item.unit_price, item.category);
     const newItem: BudgetItem = {
-      id: `new-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      category: opcion.category,
-      description: opcion.descripcion,
-      pricing_mode: opcion.pricing_mode as "por_salida" | "por_ml",
+      id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      category: item.category,
+      description: item.description,
+      pricing_mode: item.pricing_mode,
       quantity: 1,
-      unit: opcion.unit,
-      unit_price: opcion.precio,
-      metros_por_salida: opcion.metros_por_salida || null,
+      unit: item.unit,
+      unit_price: item.unit_price,
+      metros_por_salida: item.metros_por_salida || null,
       apu_materiales: apu.materiales,
       apu_mano_obra: apu.mano_obra,
       apu_equipo: apu.equipo,
       apu_transporte: apu.transporte,
       apu_indirectos: apu.indirectos,
-      apu_expanded: false,
-      subtotal: 0,
-      discount_pct: 0,
-      discount_amount: 0,
-      total: 0,
-      notes: null,
-    };
-    setItems([...items, newItem]);
-    setCalculatedBudget(null);
-  };
-
-  // =========================================================================
-  // AGREGAR ÍTEM MANUAL VACÍO
-  // =========================================================================
-
-  const addEmptyItem = () => {
-    const newItem: BudgetItem = {
-      id: `new-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      category: "otro",
-      description: "",
-      pricing_mode: "por_salida" as "por_salida",
-      quantity: 1,
-      unit: "und",
-      unit_price: 0,
-      metros_por_salida: null,
-      apu_materiales: 0,
-      apu_mano_obra: 0,
-      apu_equipo: 0,
-      apu_transporte: 0,
-      apu_indirectos: 0,
       apu_expanded: false,
       subtotal: 0,
       discount_pct: 0,
@@ -722,7 +598,6 @@ export default function NuevoPresupuestoPage() {
   // ITEMS AGRUPADOS POR CATEGORÍA
   // =========================================================================
 
-  // Catálogo jerárquico definido arriba como CATALOGO_ELECTRICO
 
   // =========================================================================
   // RENDER
@@ -823,68 +698,36 @@ export default function NuevoPresupuestoPage() {
       </div>
 
       {/* ================================================================ */}
-      {/* CATÁLOGO JERÁRQUICO — Categorías expandibles con opciones reales */}
+      {/* BARRA DE ACCIONES — Añadir Ítems */}
       {/* ================================================================ */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
-          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Package className="h-4 w-4 text-primary" /> Catálogo de Materiales y Servicios
-          </h2>
-          <p className="text-3xs text-slate-400 mt-0.5">Seleccione una categoría y elija los ítems a incluir en el presupuesto</p>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(CATALOGO_ELECTRICO).map(([categoria, opciones]) => {
-              const expandida = categoriaExpandida === categoria;
-              return (
-                <div key={categoria} className={`rounded-xl border transition-all duration-200 ${expandida ? 'border-primary/30 bg-primary/[0.02] shadow-sm ring-1 ring-primary/10' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                  <button
-                    onClick={() => setCategoriaExpandida(expandida ? null : categoria)}
-                    className="w-full flex items-center gap-2.5 px-4 py-3 text-left cursor-pointer"
-                  >
-                    <span className="text-sm">{ICONOS_CATEGORIA[categoria] || '📦'}</span>
-                    <span className="text-xs font-bold text-slate-800 flex-1">{categoria}</span>
-                    <span className="text-2xs text-slate-400 font-mono">{opciones.length} opciones</span>
-                    <ChevronRight className={`h-4 w-4 text-slate-300 transition-transform duration-200 ${expandida ? 'rotate-90' : ''}`} />
-                  </button>
-                  {expandida && (
-                    <div className="border-t border-slate-100 px-4 py-3 space-y-1.5 max-h-64 overflow-y-auto">
-                      {opciones.map((opcion, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => addItemFromCatalogo(opcion)}
-                          className="w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer group"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs font-semibold text-slate-800 group-hover:text-primary transition-colors block truncate">{opcion.label}</span>
-                            <span className="text-3xs text-slate-400 block truncate">{opcion.descripcion}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs font-bold font-mono text-primary">{formatCOP(opcion.precio)}</span>
-                            <span className="text-3xs text-slate-400">{opcion.unit === 'ml' ? '/ml' : opcion.unit === 'salida' ? '/sal' : opcion.unit === 'hora' ? '/h' : ''}</span>
-                            <Plus className="h-3.5 w-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {!categoriaExpandida && (
-            <div className="mt-4 pt-3 border-t border-dashed border-slate-200 flex items-center justify-between">
-              <span className="text-3xs text-slate-400">¿No encuentra lo que busca? Agregue un ítem manual:</span>
-              <button onClick={addEmptyItem} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-2xs font-semibold text-slate-500 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer"><Plus className="h-3 w-3" /> Ítem Personalizado</button>
-            </div>
-          )}
-        </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-primary/20"
+        >
+          <Plus className="w-4.5 h-4.5 stroke-[2.5px]" />
+          Añadir Ítem
+        </button>
+        <button
+          onClick={() => {
+            const newItem: BudgetItem = {
+              id: `man-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              category: 'otro', description: '', pricing_mode: 'por_salida', quantity: 1, unit: 'und',
+              unit_price: 0, metros_por_salida: null,
+              apu_materiales: 0, apu_mano_obra: 0, apu_equipo: 0, apu_transporte: 0, apu_indirectos: 0,
+              apu_expanded: false, subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
+            };
+            setItems([...items, newItem]);
+            setCalculatedBudget(null);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-xs font-semibold text-slate-500 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer"
+        >
+          <PenTool className="w-4 h-4" /> Ítem Personalizado
+        </button>
+        {items.length > 0 && (
+          <span className="text-xs text-slate-400 ml-auto">{items.length} ítem{items.length !== 1 ? 'es' : ''} en el presupuesto</span>
+        )}
       </div>
-
-      {/* ================================================================ */}
-      {/* SELECTOR DE APU — Biblioteca de APUs predefinidos */}
-      {/* ================================================================ */}
-      <SelectorAPU onAgregarAPU={handleAgregarAPU} />
 
       {/* ================================================================ */}
       {/* ÍTEMS DEL PRESUPUESTO — EL DINERO MANDA */}
@@ -1070,6 +913,15 @@ export default function NuevoPresupuestoPage() {
           </div>
         </div>
       )}
+    </div>
+
+      {/* Modal de Añadir Ítem */}
+      <AddItemModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAddItem={handleAddItemFromModal}
+        onAddAPU={handleAgregarAPU}
+      />
     </div>
   );
 }

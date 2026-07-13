@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Search, Plus, Trash2, Wrench, Package, Truck, Users,
   Calculator, Save, ChevronRight, FlaskConical, ArrowLeft,
-  Loader2, CheckCircle, AlertCircle,
+  Loader2, CheckCircle, AlertCircle, X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useConstructorAPUReducer } from '@/hooks/useConstructorAPU';
@@ -59,6 +59,39 @@ export default function ConstructorAPUPage() {
   const [loadingInsumos, setLoadingInsumos] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Quick-create insumo
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [newInsumo, setNewInsumo] = useState({ descripcion: '', unidad: 'und', precio_unitario: 0 });
+  const [savingInsumo, setSavingInsumo] = useState(false);
+
+  const handleQuickCreate = async () => {
+    if (!newInsumo.descripcion.trim() || newInsumo.precio_unitario <= 0) return;
+    setSavingInsumo(true);
+    const { data, error } = await supabase.from('insumos').insert({
+      descripcion: newInsumo.descripcion.trim(),
+      unidad: newInsumo.unidad,
+      tipo: state.tabActivo,
+      precio_unitario: newInsumo.precio_unitario,
+    }).select('*').single();
+    setSavingInsumo(false);
+    if (error) {
+      setErrorMsg('Error al crear insumo: ' + error.message);
+    } else if (data) {
+      setInsumosDisponibles(prev => [...prev, data as Insumo]);
+      dispatch({ type: 'AGREGAR_INSUMO', insumo: data as Insumo });
+      setNewInsumo({ descripcion: '', unidad: 'und', precio_unitario: 0 });
+      setShowQuickCreate(false);
+    }
+  };
+
+  // Custom hook-like: recargar insumos
+  const recargarInsumos = async () => {
+    setLoadingInsumos(true);
+    const { data } = await supabase.from('insumos').select('*').eq('tipo', state.tabActivo).order('descripcion');
+    setInsumosDisponibles(data || []);
+    setLoadingInsumos(false);
+  };
 
   // Cargar insumos cuando cambia la pestaña
   useEffect(() => {
@@ -258,7 +291,7 @@ export default function ConstructorAPUPage() {
         })}
       </div>
 
-      {/* Buscador de insumos — Select con filtro */}
+      {/* Buscador de insumos — Select con filtro + Quick Create */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -289,16 +322,83 @@ export default function ConstructorAPUPage() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => setShowQuickCreate(!showQuickCreate)}
+            className={`shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+              showQuickCreate
+                ? 'bg-primary text-white shadow-sm'
+                : 'border-2 border-dashed border-slate-300 text-slate-400 hover:border-primary/50 hover:text-primary'
+            }`}
+            title={`Crear nuevo ${tabActual.label.toLowerCase().replace(/s$/, '')}`}
+          >
+            <Plus className="w-5 h-5" />
+          </button>
           {loadingInsumos && (
             <span className="text-slate-400 text-sm self-center flex items-center gap-1">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando...
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             </span>
           )}
         </div>
-        {!loadingInsumos && insumosDisponibles.length === 0 && (
+
+        {/* Quick Create Form */}
+        {showQuickCreate && (
+          <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Plus className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-bold text-slate-600">
+                Nuevo {tabActual.label.toLowerCase().replace(/s$/, '')} rápido
+              </span>
+              <span className="text-3xs text-slate-400 ml-auto">Tipo: {state.tabActivo}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <input
+                type="text"
+                placeholder="Descripción del insumo"
+                value={newInsumo.descripcion}
+                onChange={(e) => setNewInsumo(p => ({ ...p, descripcion: e.target.value }))}
+                className="sm:col-span-5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-primary/50"
+              />
+              <select
+                value={newInsumo.unidad}
+                onChange={(e) => setNewInsumo(p => ({ ...p, unidad: e.target.value }))}
+                className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-sm text-slate-800 outline-none focus:border-primary/50 cursor-pointer"
+              >
+                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <div className="sm:col-span-3 relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Precio unitario"
+                  value={newInsumo.precio_unitario || ''}
+                  onChange={(e) => setNewInsumo(p => ({ ...p, precio_unitario: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-6 pr-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-primary/50"
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center gap-1">
+                <button
+                  onClick={handleQuickCreate}
+                  disabled={savingInsumo || !newInsumo.descripcion.trim() || newInsumo.precio_unitario <= 0}
+                  className="flex-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary-dark disabled:opacity-40 transition-all cursor-pointer"
+                >
+                  {savingInsumo ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : 'Crear'}
+                </button>
+                <button
+                  onClick={() => { setShowQuickCreate(false); setNewInsumo({ descripcion: '', unidad: 'und', precio_unitario: 0 }); }}
+                  className="rounded-lg border border-slate-200 px-2 py-2 text-xs text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loadingInsumos && insumosDisponibles.length === 0 && !showQuickCreate && (
           <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
             <AlertCircle className="w-3.5 h-3.5" />
-            No hay insumos en esta categoría. Ejecuta la migración SQL en Supabase primero.
+            No hay insumos en esta categoría. Crea uno con el botón + o ejecuta la migración SQL primero.
           </p>
         )}
       </div>
