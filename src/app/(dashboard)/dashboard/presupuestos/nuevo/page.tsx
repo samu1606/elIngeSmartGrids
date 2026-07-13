@@ -346,7 +346,21 @@ function NuevoPresupuestoContent() {
 
         if (budgetItems && budgetItems.length > 0) {
           const loadedItems: BudgetItem[] = budgetItems.map((bi: any) => {
-            const apuData = unpackAPUData(bi.notes);
+            // Preferir columnas directas (post-migración), fallback a notes para legacy
+            const hasDirectAPU = (bi.apu_materiales > 0 || bi.apu_mano_obra > 0 || bi.apu_equipo > 0 || bi.apu_transporte > 0 || bi.apu_indirectos > 0);
+            const apuData: Partial<BudgetItem> = hasDirectAPU
+              ? {
+                  apu_materiales: bi.apu_materiales || 0,
+                  apu_mano_obra: bi.apu_mano_obra || 0,
+                  apu_equipo: bi.apu_equipo || 0,
+                  apu_transporte: bi.apu_transporte || 0,
+                  apu_indirectos: bi.apu_indirectos || 0,
+                  is_from_apu: bi.is_from_apu ?? false,
+                  tipo_item: bi.tipo_item || undefined,
+                  notes: bi.notes,
+                }
+              : unpackAPUData(bi.notes);
+
             return {
               id: bi.id?.toString() || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
               category: bi.category || "otro",
@@ -675,7 +689,14 @@ function NuevoPresupuestoContent() {
             subtotal: item.subtotal,
             discount_amount: item.discount_amount,
             total: item.total,
-            notes: packAPUData(item),
+            notes: item.notes,
+            apu_materiales: item.apu_materiales || 0,
+            apu_mano_obra: item.apu_mano_obra || 0,
+            apu_equipo: item.apu_equipo || 0,
+            apu_transporte: item.apu_transporte || 0,
+            apu_indirectos: item.apu_indirectos || 0,
+            is_from_apu: item.is_from_apu ?? false,
+            tipo_item: item.tipo_item || null,
             sort_order: idx,
           }));
           await supabase.from("budget_items").insert(itemsToInsert);
@@ -718,7 +739,14 @@ function NuevoPresupuestoContent() {
             subtotal: item.subtotal,
             discount_amount: item.discount_amount,
             total: item.total,
-            notes: packAPUData(item),
+            notes: item.notes,
+            apu_materiales: item.apu_materiales || 0,
+            apu_mano_obra: item.apu_mano_obra || 0,
+            apu_equipo: item.apu_equipo || 0,
+            apu_transporte: item.apu_transporte || 0,
+            apu_indirectos: item.apu_indirectos || 0,
+            is_from_apu: item.is_from_apu ?? false,
+            tipo_item: item.tipo_item || null,
             sort_order: idx,
           }));
           await supabase.from("budget_items").insert(itemsToInsert);
