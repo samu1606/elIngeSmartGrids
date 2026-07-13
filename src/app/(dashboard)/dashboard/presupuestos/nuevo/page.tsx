@@ -9,7 +9,6 @@ import {
   Trash2,
   Save,
   ArrowLeft,
-  Calculator,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -253,14 +252,19 @@ function NuevoPresupuestoContent() {
 
   // Estados de ítems
   const [items, setItems] = useState<BudgetItem[]>([]);
-  const [calculatedBudget, setCalculatedBudget] = useState<CalculatedBudget | null>(null);
+  const [calculatedItems, setCalculatedItems] = useState<BudgetItem[]>([]);
+  const [subtotalGeneral, setSubtotalGeneral] = useState(0);
+  const [aiuAmount, setAiuAmount] = useState(0);
+  const [ivaAmount, setIvaAmount] = useState(0);
+  const [retencionAmount, setRetencionAmount] = useState(0);
+  const [totalFinal, setTotalFinal] = useState(0);
 
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
   const [metrosOptions, setMetrosOptions] = useState<number[]>([5, 6, 7, 8, 9, 10, 11]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(true);
-  const [calculando, setCalculando] = useState(false);
+  const [loadingBudget, setLoadingBudget] = useState(false); // loading para edición
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -323,6 +327,7 @@ function NuevoPresupuestoContent() {
   // Cargar presupuesto para edición
   useEffect(() => {
     if (!editBudgetId) return;
+    setLoadingBudget(true);
     const loadBudget = async () => {
       try {
         const { data: budget } = await supabase
@@ -395,10 +400,50 @@ function NuevoPresupuestoContent() {
         }
       } catch (err) {
         console.warn("Error cargando presupuesto para editar:", err);
+      } finally {
+        setLoadingBudget(false);
       }
     };
     loadBudget();
   }, [editBudgetId, supabase]);
+
+  // =========================================================================
+  // AUTO-CÁLCULO EN TIEMPO REAL (useEffect)
+  // =========================================================================
+  useEffect(() => {
+    if (items.length === 0) {
+      setCalculatedItems([]);
+      setSubtotalGeneral(0); setAiuAmount(0); setIvaAmount(0);
+      setRetencionAmount(0); setTotalFinal(0);
+      return;
+    }
+
+    const itemsCalc = items.map((item) => {
+      const qty = item.quantity;
+      const price = item.unit_price;
+      const mts = item.metros_por_salida || 7;
+      let subtotal = 0;
+      if (item.pricing_mode === "por_ml") subtotal = qty * mts * price;
+      else subtotal = qty * price;
+      const discount = subtotal * (item.discount_pct / 100);
+      const total = subtotal - discount;
+      return { ...item, subtotal: Math.round(subtotal * 100) / 100, discount_amount: Math.round(discount * 100) / 100, total: Math.round(total * 100) / 100 };
+    });
+
+    const sub = itemsCalc.reduce((acc, i) => acc + i.total, 0);
+    const a = Math.round(sub * (aiuPct / 100));
+    const base = sub + a;
+    const iv = Math.round(base * (ivaPct / 100));
+    const rt = Math.round(base * (retencionPct / 100));
+    const tf = base + iv - rt;
+
+    setCalculatedItems(itemsCalc);
+    setSubtotalGeneral(sub);
+    setAiuAmount(a);
+    setIvaAmount(iv);
+    setRetencionAmount(rt);
+    setTotalFinal(tf);
+  }, [items, ivaPct, retencionPct, aiuPct]);
 
   // Cargar clientes y proyectos para los selects
   useEffect(() => {
@@ -462,7 +507,6 @@ function NuevoPresupuestoContent() {
     };
 
     setItems([...items, newItem]);
-    setCalculatedBudget(null);
   };
 
   // =========================================================================
@@ -503,7 +547,6 @@ function NuevoPresupuestoContent() {
         return updated;
       })
     );
-    setCalculatedBudget(null);
   };
 
   // =========================================================================
@@ -512,165 +555,17 @@ function NuevoPresupuestoContent() {
 
   const removeItem = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    setCalculatedBudget(null);
   };
 
-  // =========================================================================
-  // CALCULAR PRESUPUESTO (llama al backend)
-  // =========================================================================
-
-  const calcularPresupuesto = async () => {
-    setError(null);
-    setCalculando(true);
-
-    if (items.length === 0) {
-      setError("Agregue al menos un ítem al presupuesto.");
-      setCalculando(false);
-      return;
-    }
-
-    if (!projectName.trim()) {
-      setError("El nombre del proyecto es obligatorio.");
-      setCalculando(false);
-      return;
-    }
-
-    if (!clientName.trim()) {
-      setError("El nombre del cliente es obligatorio.");
-      setCalculando(false);
-      return;
-    }
-
-    // Validar items
-    for (const item of items) {
-      if (!item.description.trim()) {
-        setError("Todos los ítems deben tener descripción.");
-        setCalculando(false);
-        return;
-      }
-    }
-
-    try {
-      const res = await fetch(`${apiUrl}/api/presupuestos/calcular`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          number,
-          client_name: clientName,
-          client_nit: clientNit || null,
-          client_address: clientAddress || null,
-          client_phone: clientPhone || null,
-          client_email: clientEmail || null,
-          project_name: projectName,
-          project_address: projectAddress || null,
-          issue_date: issueDate,
-          valid_until: validUntil,
-          items: items.map((item) => ({
-            category: item.category,
-            description: item.description,
-            pricing_mode: item.pricing_mode,
-            quantity: item.quantity,
-            unit: item.unit,
-            unit_price: item.unit_price,
-            metros_por_salida: item.metros_por_salida,
-            discount_pct: item.discount_pct,
-            notes: item.notes,
-          })),
-          iva_pct: ivaPct,
-          retencion_pct: retencionPct,
-          notas_legales: notasLegales,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.detail || "Error al calcular el presupuesto.");
-      }
-
-      const data: CalculatedBudget = await res.json();
-      setCalculatedBudget(data);
-    } catch (err: any) {
-      console.warn("Backend no disponible, calculando localmente:", err.message);
-      calcularLocalmente();
-    } finally {
-      setCalculando(false);
-    }
-  };
-
-  // Cálculo local (fallback si backend no disponible)
-  const calcularLocalmente = () => {
-    const itemsCalculados = items.map((item) => {
-      let subtotal = 0;
-      const qty = item.quantity;
-      const price = item.unit_price;
-      const mts = item.metros_por_salida || 7;
-
-      if (item.pricing_mode === "por_ml") {
-        subtotal = qty * mts * price;
-      } else if (item.pricing_mode === "por_salida") {
-        subtotal = qty * price;
-      } else {
-        subtotal = qty * price;
-      }
-
-      const discount = subtotal * (item.discount_pct / 100);
-      const total = subtotal - discount;
-
-      return {
-        ...item,
-        subtotal: Math.round(subtotal * 100) / 100,
-        discount_amount: Math.round(discount * 100) / 100,
-        total: Math.round(total * 100) / 100,
-      };
-    });
-
-    const subtotalGeneral = itemsCalculados.reduce((acc, i) => acc + i.total, 0);
-    const aiuAmount = Math.round(subtotalGeneral * (aiuPct / 100));
-    const baseConAIU = subtotalGeneral + aiuAmount;
-    const ivaAmount = Math.round(baseConAIU * (ivaPct / 100));
-    const retencionAmount = Math.round(baseConAIU * (retencionPct / 100));
-    const totalFinal = baseConAIU + ivaAmount - retencionAmount;
-
-    setCalculatedBudget({
-      number,
-      client_name: clientName,
-      client_nit: clientNit || null,
-      client_address: clientAddress || null,
-      client_phone: clientPhone || null,
-      client_email: clientEmail || null,
-      project_name: projectName,
-      project_address: projectAddress || null,
-      issue_date: issueDate,
-      valid_until: validUntil,
-      items: itemsCalculados,
-      subtotal_general: Math.round(subtotalGeneral * 100) / 100,
-      aiu_pct: aiuPct,
-      aiu_amount: aiuAmount,
-      iva_pct: ivaPct,
-      iva_amount: ivaAmount,
-      retencion_pct: retencionPct,
-      retencion_amount: retencionAmount,
-      total_final: totalFinal,
-      notas_legales: notasLegales,
-    });
-  };
-
-  // =========================================================================
   // GUARDAR EN SUPABASE
   // =========================================================================
 
   const guardarPresupuesto = async () => {
-    if (!calculatedBudget) return;
+    if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
     setError(null);
     setGuardando(true);
 
-    // Recalcular total con impuestos (no confiar en backend)
-    const subtotalBase = calculatedBudget.subtotal_general;
-    const aiuCalculado = Math.round(subtotalBase * (calculatedBudget.aiu_pct / 100));
-    const baseAIU = subtotalBase + aiuCalculado;
-    const ivaCalculado = Math.round(baseAIU * (calculatedBudget.iva_pct / 100));
-    const retencionCalculada = Math.round(baseAIU * (calculatedBudget.retencion_pct / 100));
-    const totalConImpuestos = baseAIU + ivaCalculado - retencionCalculada;
+    const totalConImpuestos = totalFinal;
 
     try {
       if (editBudgetId) {
@@ -678,11 +573,11 @@ function NuevoPresupuestoContent() {
         const { error: budgetError } = await supabase
           .from("budgets")
           .update({
-            number: calculatedBudget.number,
-            client_name: calculatedBudget.client_name,
-            project_name: calculatedBudget.project_name,
-            issue_date: calculatedBudget.issue_date,
-            valid_until: calculatedBudget.valid_until,
+            number: number,
+            client_name: clientName,
+            project_name: projectName,
+            issue_date: issueDate,
+            valid_until: validUntil,
             total: totalConImpuestos,
           })
           .eq("id", editBudgetId);
@@ -694,7 +589,7 @@ function NuevoPresupuestoContent() {
 
         // Re-insertar items
         try {
-          const itemsToInsert = calculatedBudget.items.map((item, idx) => ({
+          const itemsToInsert = items.map((item, idx) => ({
             budget_id: editBudgetId,
             category: item.category,
             description: item.description,
@@ -728,11 +623,11 @@ function NuevoPresupuestoContent() {
         const { data: budgetData, error: budgetError } = await supabase
           .from("budgets")
           .insert({
-            number: calculatedBudget.number,
-            client_name: calculatedBudget.client_name,
-            project_name: calculatedBudget.project_name,
-            issue_date: calculatedBudget.issue_date,
-            valid_until: calculatedBudget.valid_until,
+            number: number,
+            client_name: clientName,
+            project_name: projectName,
+            issue_date: issueDate,
+            valid_until: validUntil,
             total: totalConImpuestos,
             status: "pendiente",
           })
@@ -744,7 +639,7 @@ function NuevoPresupuestoContent() {
 
         // Insertar items
         try {
-          const itemsToInsert = calculatedBudget.items.map((item, idx) => ({
+          const itemsToInsert = items.map((item, idx) => ({
             budget_id: budgetData.id,
             category: item.category,
             description: item.description,
@@ -822,9 +717,19 @@ function NuevoPresupuestoContent() {
       {error && (<div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700"><AlertCircle className="h-5 w-5 shrink-0 text-red-500" /><span>{error}</span></div>)}
       {success && (<div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700"><CheckCircle className="h-5 w-5 shrink-0 text-emerald-500" /><span>{success}</span></div>)}
 
+      {/* Loading para edición */}
+      {loadingBudget && editBudgetId && (
+        <div className="text-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-3" />
+          <p className="text-sm font-semibold text-slate-600">Cargando presupuesto...</p>
+          <p className="text-xs text-slate-400 mt-1">Obteniendo ítems y datos del presupuesto</p>
+        </div>
+      )}
+
       {/* ================================================================ */}
       {/* CLIENTE + PROYECTO — Selects desde Supabase */}
       {/* ================================================================ */}
+      {!loadingBudget && (<>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
@@ -919,7 +824,6 @@ function NuevoPresupuestoContent() {
               apu_expanded: false, is_from_apu: false, tipo_item: 'insumo_directo', subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
             };
             setItems([...items, newItem]);
-            setCalculatedBudget(null);
           }}
           className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-xs font-semibold text-slate-500 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer"
         >
@@ -1046,21 +950,46 @@ function NuevoPresupuestoContent() {
               </tbody>
             </table>
           </div>
+          </>)}
 
-          {/* Barra AIU + Calcular */}
-          <div className="border-t-2 border-slate-200 bg-gradient-to-r from-primary/5 to-white px-5 py-3.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setShowAIUModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-2.5 text-sm font-black text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-blue-600/20">
-                  <Percent className="h-4 w-4" /> AIU
-                </button>
-                <button onClick={calcularPresupuesto} disabled={calculando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-primary/20">
-                  {calculando ? <><Loader2 className="h-4 w-4 animate-spin" /> Calculando...</> : <><Calculator className="h-4 w-4" /> Calcular Presupuesto</>}
-                </button>
+          {/* Footer fijo: Totales + AIU + Guardar */}
+          <div className="border-t-2 border-slate-200 bg-white px-5 py-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3 text-xs">
+                <div className="text-center">
+                  <span className="block text-3xs text-slate-400 uppercase">Subtotal</span>
+                  <span className="font-mono font-bold text-slate-800">{formatCOP(subtotalGeneral)}</span>
+                </div>
+                {aiuPct > 0 && (
+                  <div className="text-center">
+                    <span className="block text-3xs text-blue-500 uppercase">AIU ({aiuPct}%)</span>
+                    <span className="font-mono font-bold text-blue-700">{formatCOP(aiuAmount)}</span>
+                  </div>
+                )}
+                {ivaPct > 0 && (
+                  <div className="text-center">
+                    <span className="block text-3xs text-slate-400 uppercase">IVA ({ivaPct}%)</span>
+                    <span className="font-mono font-bold text-slate-600">{formatCOP(ivaAmount)}</span>
+                  </div>
+                )}
+                {retencionPct > 0 && (
+                  <div className="text-center">
+                    <span className="block text-3xs text-red-500 uppercase">Retefuente</span>
+                    <span className="font-mono font-bold text-red-600">-{formatCOP(retencionAmount)}</span>
+                  </div>
+                )}
+                <div className="text-center pl-3 border-l-2 border-slate-200">
+                  <span className="block text-3xs text-slate-400 uppercase">TOTAL</span>
+                  <span className="font-display font-black text-lg text-primary">{formatCOP(totalFinal)}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-2xs font-semibold text-slate-400 uppercase block">Subtotal Estimado</span>
-                <span className="text-xl font-black text-slate-900 font-display">{formatCOP(items.reduce((sum, i) => sum + (i.unit_price * i.quantity), 0))}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowAIUModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-2xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">
+                  <Percent className="h-3 w-3" /> AIU
+                </button>
+                <button onClick={guardarPresupuesto} disabled={guardando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shadow-sm">
+                  {guardando ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {editBudgetId ? 'Actualizando...' : 'Guardando...'}</> : <><Save className="h-3.5 w-3.5" /> {editBudgetId ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</>}
+                </button>
               </div>
             </div>
           </div>
@@ -1102,73 +1031,13 @@ function NuevoPresupuestoContent() {
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowAIUModal(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all cursor-pointer">Cancelar</button>
-                <button onClick={() => { setShowAIUModal(false); calcularPresupuesto(); }} className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">Aplicar y Calcular</button>
+                <button onClick={() => setShowAIUModal(false)} className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">Aplicar</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* RESULTADO FINAL */}
-      {/* ================================================================ */}
-      {calculatedBudget && (
-        <div className="rounded-2xl border-2 border-primary/30 bg-white shadow-xl overflow-hidden animate-slide-up">
-          <div className="bg-gradient-to-r from-primary to-primary-dark px-6 py-5 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/70 font-medium">{calculatedBudget.client_name}</p>
-                <h3 className="text-lg font-black font-display">{calculatedBudget.project_name || calculatedBudget.number}</h3>
-              </div>
-              <div className="text-right">
-                <span className="text-2xs font-semibold text-white/60 uppercase block">TOTAL FINAL</span>
-                <span className="text-3xl font-black font-display tracking-tight">{formatCOP(calculatedBudget.total_final)}</span>
-              </div>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-3xs font-bold uppercase text-slate-400 tracking-wider">
-                  <th className="px-5 py-2 w-8">#</th>
-                  <th className="px-5 py-2">Descripción</th>
-                  <th className="px-5 py-2 text-right w-28">P. Unit.</th>
-                  <th className="px-5 py-2 text-center w-20">Cant.</th>
-                  <th className="px-5 py-2 text-right w-28">Subtotal</th>
-                  <th className="px-5 py-2 text-right w-28">TOTAL</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {calculatedBudget.items.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50/50">
-                    <td className="px-5 py-2 text-slate-400 font-mono text-xs">{idx + 1}</td>
-                    <td className="px-5 py-2"><span className="font-semibold text-slate-800 text-xs">{item.description}</span>{item.metros_por_salida && <span className="ml-1.5 text-amber-600 text-3xs">({item.metros_por_salida}m)</span>}</td>
-                    <td className="px-5 py-2 text-right font-mono text-sm font-bold text-slate-800">{formatCOP(item.unit_price)}</td>
-                    <td className="px-5 py-2 text-center text-xs text-slate-500">{item.quantity} {item.unit}</td>
-                    <td className="px-5 py-2 text-right font-mono text-xs text-slate-500">{formatCOP(item.subtotal)}</td>
-                    <td className="px-5 py-2 text-right font-mono text-sm font-black text-slate-900">{formatCOP(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="border-t border-slate-200 px-6 py-4 bg-slate-50/50">
-            <div className="space-y-1 max-w-xs ml-auto">
-              <div className="flex justify-between text-xs"><span className="text-slate-400">Subtotal</span><span className="font-mono font-semibold text-slate-800">{formatCOP(calculatedBudget.subtotal_general)}</span></div>
-              {calculatedBudget.aiu_pct > 0 && <div className="flex justify-between text-xs"><span className="text-slate-400">AIU ({calculatedBudget.aiu_pct}%)</span><span className="font-mono text-blue-600">{formatCOP(calculatedBudget.aiu_amount)}</span></div>}
-              {calculatedBudget.iva_pct > 0 && <div className="flex justify-between text-xs"><span className="text-slate-400">IVA ({calculatedBudget.iva_pct}%)</span><span className="font-mono text-slate-600">{formatCOP(calculatedBudget.iva_amount)}</span></div>}
-              {calculatedBudget.retencion_pct > 0 && <div className="flex justify-between text-xs"><span className="text-red-500">Retefuente ({calculatedBudget.retencion_pct}%)</span><span className="font-mono text-red-600">-{formatCOP(calculatedBudget.retencion_amount)}</span></div>}
-              <div className="flex justify-between text-base font-black pt-2 border-t border-slate-200"><span className="text-slate-900">TOTAL</span><span className="font-display text-primary">{formatCOP(calculatedBudget.total_final)}</span></div>
-            </div>
-          </div>
-          <div className="border-t border-slate-200 px-6 py-3 flex justify-end gap-3 bg-white">
-            <button onClick={() => setCalculatedBudget(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all cursor-pointer">Nuevo Cálculo</button>
-            <button onClick={guardarPresupuesto} disabled={guardando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2 text-xs font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shadow-sm">
-              {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> {editBudgetId ? 'Actualizando...' : 'Guardando...'}</> : <><Save className="h-4 w-4" /> {editBudgetId ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</>}
-            </button>
-          </div>
-        </div>
-      )}
       {/* Modal de Añadir Ítem */}
       <AddItemModal
         open={showAddModal}
