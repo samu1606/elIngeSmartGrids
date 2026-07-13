@@ -17,7 +17,7 @@ import {
   Wrench,
   PenTool,
 } from "lucide-react";
-import AddItemModal, { type BudgetItemFromModal } from "@/components/presupuestos/AddItemModal";
+import AddItemModal from "@/components/presupuestos/AddItemModal";
 import type { APUCompleto } from "@/lib/supabase/apus";
 
 // =============================================================================
@@ -45,6 +45,8 @@ interface BudgetItem {
   apu_transporte: number;
   apu_indirectos: number;
   apu_expanded: boolean;
+  // Origen del ítem
+  is_from_apu?: boolean;  // true = biblioteca APU, false/undefined = manual o catálogo
 }
 
 interface CalculatedBudget {
@@ -262,37 +264,6 @@ export default function NuevoPresupuestoPage() {
   }, [supabase]);
 
   // =========================================================================
-  // AGREGAR ÍTEM DESDE MODAL (catálogo)
-  // =========================================================================
-
-  const handleAddItemFromModal = (item: BudgetItemFromModal) => {
-    const apu = calcularAPU(item.unit_price, item.category);
-    const newItem: BudgetItem = {
-      id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      category: item.category,
-      description: item.description,
-      pricing_mode: item.pricing_mode,
-      quantity: 1,
-      unit: item.unit,
-      unit_price: item.unit_price,
-      metros_por_salida: item.metros_por_salida || null,
-      apu_materiales: apu.materiales,
-      apu_mano_obra: apu.mano_obra,
-      apu_equipo: apu.equipo,
-      apu_transporte: apu.transporte,
-      apu_indirectos: apu.indirectos,
-      apu_expanded: false,
-      subtotal: 0,
-      discount_pct: 0,
-      discount_amount: 0,
-      total: 0,
-      notes: null,
-    };
-    setItems([...items, newItem]);
-    setCalculatedBudget(null);
-  };
-
-  // =========================================================================
   // AGREGAR APU DESDE BIBLIOTECA (FASE 2)
   // =========================================================================
 
@@ -309,6 +280,7 @@ export default function NuevoPresupuestoPage() {
     const newItem: BudgetItem = {
       id: `apu-${apuCompleto.apu.id}-${Date.now()}`,
       category: "otro",
+      is_from_apu: true,
       description: `${apuCompleto.apu.codigo} — ${apuCompleto.apu.descripcion}`,
       pricing_mode: "por_salida",
       quantity: 1,
@@ -693,8 +665,8 @@ export default function NuevoPresupuestoPage() {
           onClick={() => setShowAddModal(true)}
           className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white hover:bg-primary-dark active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-primary/20"
         >
-          <Plus className="w-4.5 h-4.5 stroke-[2.5px]" />
-          Añadir Ítem
+          <Package className="w-4.5 h-4.5" />
+          BIBLIOTECA DE APU
         </button>
         <button
           onClick={() => {
@@ -703,7 +675,7 @@ export default function NuevoPresupuestoPage() {
               category: 'otro', description: '', pricing_mode: 'por_salida', quantity: 1, unit: 'und',
               unit_price: 0, metros_por_salida: null,
               apu_materiales: 0, apu_mano_obra: 0, apu_equipo: 0, apu_transporte: 0, apu_indirectos: 0,
-              apu_expanded: false, subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
+              apu_expanded: false, is_from_apu: false, subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
             };
             setItems([...items, newItem]);
             setCalculatedBudget(null);
@@ -743,7 +715,7 @@ export default function NuevoPresupuestoPage() {
                   <tr className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2">
                       <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-xs text-slate-800 outline-none font-semibold" />
-                      {(item.apu_materiales > 0 || item.apu_mano_obra > 0) && (
+                      {!item.is_from_apu && (item.apu_materiales > 0 || item.apu_mano_obra > 0) && (
                         <button
                           type="button"
                           onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
@@ -769,7 +741,11 @@ export default function NuevoPresupuestoPage() {
                     <td className="px-4 py-2 text-right">
                       <div className="relative inline-block">
                         <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">$</span>
-                        <input type="number" value={item.unit_price} onChange={(e) => { const precio = Number(e.target.value); updateItem(item.id, "unit_price", precio); const apu = calcularAPU(precio, item.category); updateItem(item.id, "apu_materiales", apu.materiales); updateItem(item.id, "apu_mano_obra", apu.mano_obra); updateItem(item.id, "apu_equipo", apu.equipo); updateItem(item.id, "apu_transporte", apu.transporte); updateItem(item.id, "apu_indirectos", apu.indirectos); }} min={0} className="w-24 rounded border border-slate-200 bg-slate-50 pl-5 pr-1.5 py-0.5 text-sm font-bold font-mono text-slate-800 outline-none focus:border-primary/50 text-right" />
+                        {item.is_from_apu ? (
+                          <span className="inline-block w-24 rounded border border-slate-100 bg-transparent pl-5 pr-1.5 py-0.5 text-sm font-bold font-mono text-slate-600 text-right">{formatCOP(item.unit_price)}</span>
+                        ) : (
+                          <input type="number" value={item.unit_price} onChange={(e) => { const precio = Number(e.target.value); updateItem(item.id, "unit_price", precio); const apu = calcularAPU(precio, item.category); updateItem(item.id, "apu_materiales", apu.materiales); updateItem(item.id, "apu_mano_obra", apu.mano_obra); updateItem(item.id, "apu_equipo", apu.equipo); updateItem(item.id, "apu_transporte", apu.transporte); updateItem(item.id, "apu_indirectos", apu.indirectos); }} min={0} className="w-24 rounded border border-slate-200 bg-slate-50 pl-5 pr-1.5 py-0.5 text-sm font-bold font-mono text-slate-800 outline-none focus:border-primary/50 text-right" />
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -904,7 +880,6 @@ export default function NuevoPresupuestoPage() {
       <AddItemModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAddItem={handleAddItemFromModal}
         onAddAPU={handleAgregarAPU}
       />
     </div>
