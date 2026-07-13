@@ -167,41 +167,74 @@ export default function ConstructorAPUPage() {
 
     dispatch({ type: 'SET_SAVING', value: true });
 
-    // 1. Insertar APU
-    const { data: apuData, error: apuError } = await supabase
-      .from('apus')
-      .insert({
-        codigo: state.apu.codigo.trim(),
-        descripcion: state.apu.descripcion.trim(),
-        unidad: state.apu.unidad,
-      })
-      .select('id')
-      .single();
-
-    if (apuError || !apuData) {
-      setErrorMsg('Error al crear el APU: ' + (apuError?.message ?? 'Desconocido'));
-      dispatch({ type: 'SET_SAVING', value: false });
-      return;
-    }
-
-    // 2. Insertar detalles
     const detalles = state.insumos.map((item) => ({
-      apu_id: apuData.id,
       insumo_id: item.insumo.id,
       cantidad_rendimiento: item.cantidad,
     }));
 
-    const { error: detError } = await supabase.from('detalle_apu').insert(detalles);
+    if (editingAPUId !== null) {
+      // === UPDATE ===
+      const { error } = await actualizarAPU(editingAPUId, {
+        codigo: state.apu.codigo.trim(),
+        descripcion: state.apu.descripcion.trim(),
+        unidad: state.apu.unidad,
+      }, detalles);
 
-    dispatch({ type: 'SET_SAVING', value: false });
+      dispatch({ type: 'SET_SAVING', value: false });
 
-    if (detError) {
-      setErrorMsg('APU creado pero error en detalles: ' + detError.message);
+      if (error) {
+        setErrorMsg('Error al actualizar el APU: ' + error);
+      } else {
+        setSuccessMsg(`✅ APU "${state.apu.codigo}" actualizado con ${detalles.length} insumos.`);
+        setEditingAPUId(null);
+        dispatch({ type: 'RESET' });
+        recargarAPUs();
+      }
     } else {
-      setSuccessMsg(`✅ APU "${state.apu.codigo}" creado con ${detalles.length} insumos. Costo total: ${formatCOP(costoTotal)}`);
-      dispatch({ type: 'RESET' });
+      // === INSERT (verificar duplicado primero) ===
+      const { data: existente } = await supabase
+        .from('apus')
+        .select('id')
+        .eq('codigo', state.apu.codigo.trim())
+        .maybeSingle();
+
+      if (existente) {
+        setErrorMsg(`El código "${state.apu.codigo}" ya existe. Usa otro código o edita el APU existente.`);
+        dispatch({ type: 'SET_SAVING', value: false });
+        return;
+      }
+
+      const { data: apuData, error: apuError } = await supabase
+        .from('apus')
+        .insert({
+          codigo: state.apu.codigo.trim(),
+          descripcion: state.apu.descripcion.trim(),
+          unidad: state.apu.unidad,
+        })
+        .select('id')
+        .single();
+
+      if (apuError || !apuData) {
+        setErrorMsg('Error al crear el APU: ' + (apuError?.message ?? 'Desconocido'));
+        dispatch({ type: 'SET_SAVING', value: false });
+        return;
+      }
+
+      const { error: detError } = await supabase
+        .from('detalle_apu')
+        .insert(detalles.map(d => ({ apu_id: apuData.id, insumo_id: d.insumo_id, cantidad_rendimiento: d.cantidad_rendimiento })));
+
+      dispatch({ type: 'SET_SAVING', value: false });
+
+      if (detError) {
+        setErrorMsg('APU creado pero error en detalles: ' + detError.message);
+      } else {
+        setSuccessMsg(`✅ APU "${state.apu.codigo}" creado con ${detalles.length} insumos. Costo total: ${formatCOP(costoTotal)}`);
+        dispatch({ type: 'RESET' });
+        recargarAPUs();
+      }
     }
-  }, [state.apu, state.insumos, costoTotal, dispatch]);
+  }, [state.apu, state.insumos, costoTotal, dispatch, editingAPUId]);
 
   // Editar APU existente
   const handleEditarAPU = async (apuId: number) => {
