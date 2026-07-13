@@ -266,6 +266,7 @@ function NuevoPresupuestoContent() {
   const [retencionAmount, setRetencionAmount] = useState(0);
   const [totalFinal, setTotalFinal] = useState(0);
   const totalRef = useRef(0); // ref inmutable para guardar — nunca stale
+  const savingRef = useRef(false); // previene doble ejecución (race condition)
 
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
@@ -665,8 +666,8 @@ function NuevoPresupuestoContent() {
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
   const handleCreate = async () => {
     if (editBudgetId) {
-      console.error("⛔ handleCreate llamada con editBudgetId activo — posible race condition, redirigiendo a handleUpdate");
-      return handleUpdate();
+      console.error("⛔ handleCreate llamada con editBudgetId activo — ABORTANDO (no redirigir para evitar duplicado)");
+      return; // NO redirigir a handleUpdate — ya se ejecutó desde guardarPresupuesto
     }
 
     const calc = computeTotal();
@@ -703,16 +704,26 @@ function NuevoPresupuestoContent() {
 
   // PUNTO DE ENTRADA ÚNICO — despacha a handleUpdate o handleCreate según editBudgetId
   const guardarPresupuesto = async () => {
-    if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
-    if (!projectName.trim()) { setError("Ingrese el nombre del proyecto."); return; }
-    if (!clientName) { setError("Seleccione o ingrese un cliente."); return; }
+    // 🔒 BLOQUEO ANTI DOBLE-CLICK: ref mutable, inmediato (no depende de React state)
+    if (savingRef.current) {
+      console.warn("⛔ guardarPresupuesto BLOQUEADO: ya hay un guardado en progreso");
+      return;
+    }
+    savingRef.current = true;
+
+    if (items.length === 0) { setError("Agregue al menos un ítem."); savingRef.current = false; return; }
+    if (!projectName.trim()) { setError("Ingrese el nombre del proyecto."); savingRef.current = false; return; }
+    if (!clientName) { setError("Seleccione o ingrese un cliente."); savingRef.current = false; return; }
     setError(null);
     setGuardando(true);
 
-    console.log("🔄 guardarPresupuesto — modo:", editBudgetId ? "UPDATE" : "INSERT", "| editBudgetId:", editBudgetId);
+    // Capturar editBudgetId ANTES del await (evita que cambie durante operación async)
+    const capturedEditId = editBudgetId;
+
+    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| editBudgetId:", capturedEditId, "| items:", items.length);
 
     try {
-      if (editBudgetId) {
+      if (capturedEditId) {
         await handleUpdate();
       } else {
         await handleCreate();
@@ -724,6 +735,8 @@ function NuevoPresupuestoContent() {
       setError(err.message || "Error al guardar el presupuesto.");
     } finally {
       setGuardando(false);
+      savingRef.current = false;
+      console.log("🔓 guardarPresupuesto — bloqueo liberado");
     }
   };
 
