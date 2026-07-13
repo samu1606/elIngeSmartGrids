@@ -665,7 +665,7 @@ function NuevoPresupuestoContent() {
         tipo_item: item.tipo_item || null,
         sort_order: idx,
       };
-    }));
+    });
 
   // FUNCIÓN DE CÁLCULO INLINE (garantiza valor real en el instante del click)
   const computeTotal = () => {
