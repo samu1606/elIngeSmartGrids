@@ -789,15 +789,19 @@ function NuevoPresupuestoContent() {
       "| hook:", editBudgetId,
       "| final:", capturedEditId);
 
+    // BLOQUEO ADICIONAL: si ya se guardó exitosamente, no permitir otro
+    if (success) {
+      console.warn("⛔ guardarPresupuesto BLOQUEADO: ya se guardó exitosamente");
+      return;
+    }
+
     try {
       if (capturedEditId) {
         await handleUpdate();
       } else {
         await handleCreate();
       }
-      setTimeout(() => {
-        router.push("/dashboard/presupuestos");
-      }, 1500);
+      // NO navegar con router.push — causa remontaje fantasma y INSERT en $0
     } catch (err: any) {
       setError(err.message || "Error al guardar el presupuesto.");
     } finally {
