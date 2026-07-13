@@ -632,28 +632,39 @@ function NuevoPresupuestoContent() {
   });
 
   const buildItemsPayload = (budgetId: string) =>
-    items.map((item, idx) => ({
-      budget_id: budgetId,
-      category: item.category,
-      description: item.description,
-      pricing_mode: item.pricing_mode,
-      quantity: item.quantity,
-      unit: item.unit,
-      unit_price: item.unit_price,
-      metros_por_salida: item.metros_por_salida,
-      discount_pct: item.discount_pct,
-      subtotal: item.subtotal || 0,
-      discount_amount: item.discount_amount || 0,
-      total: item.total || 0,
-      notes: item.notes || null,
-      apu_materiales: item.apu_materiales || 0,
-      apu_mano_obra: item.apu_mano_obra || 0,
-      apu_equipo: item.apu_equipo || 0,
-      apu_transporte: item.apu_transporte || 0,
-      apu_indirectos: item.apu_indirectos || 0,
-      is_from_apu: item.is_from_apu ?? false,
-      tipo_item: item.tipo_item || null,
-      sort_order: idx,
+    items.map((item, idx) => {
+      // Calcular subtotal real del ítem (misma fórmula que el cálculo inline)
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unit_price) || 0;
+      const mts = Number(item.metros_por_salida) || 7;
+      const rawSubtotal = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
+      const discountAmt = rawSubtotal * (Number(item.discount_pct) / 100);
+      const itemSubtotal = Math.round(rawSubtotal - discountAmt);
+      const itemTotal = itemSubtotal; // total individual = subtotal (sin AIU)
+
+      return {
+        budget_id: budgetId,
+        category: item.category,
+        description: item.description,
+        pricing_mode: item.pricing_mode,
+        quantity: qty,
+        unit: item.unit,
+        unit_price: price,
+        metros_por_salida: mts,
+        discount_pct: Number(item.discount_pct) || 0,
+        subtotal: itemSubtotal,
+        discount_amount: Math.round(discountAmt),
+        total: itemTotal,
+        notes: item.notes || null,
+        apu_materiales: item.apu_materiales || 0,
+        apu_mano_obra: item.apu_mano_obra || 0,
+        apu_equipo: item.apu_equipo || 0,
+        apu_transporte: item.apu_transporte || 0,
+        apu_indirectos: item.apu_indirectos || 0,
+        is_from_apu: item.is_from_apu ?? false,
+        tipo_item: item.tipo_item || null,
+        sort_order: idx,
+      };
     }));
 
   // FUNCIÓN DE CÁLCULO INLINE (garantiza valor real en el instante del click)
