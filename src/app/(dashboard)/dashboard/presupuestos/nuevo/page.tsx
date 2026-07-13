@@ -47,6 +47,7 @@ interface BudgetItem {
   apu_expanded: boolean;
   // Origen del ítem
   is_from_apu?: boolean;  // true = biblioteca APU, false/undefined = manual o catálogo
+  tipo_item?: 'insumo_directo' | 'apu';  // solo para ítems manuales
 }
 
 interface CalculatedBudget {
@@ -328,6 +329,21 @@ export default function NuevoPresupuestoPage() {
           if (updated.pricing_mode === "por_ml" && !updated.metros_por_salida) {
             updated.metros_por_salida = 7;
           }
+        }
+
+        // Si cambia el tipo de ítem manual, recalcular precio desde APU
+        if (field === "tipo_item" && value === "apu") {
+          const sumAPU = updated.apu_materiales + updated.apu_mano_obra + updated.apu_equipo + updated.apu_transporte + updated.apu_indirectos;
+          if (sumAPU > 0) updated.unit_price = sumAPU;
+        }
+        if (field === "tipo_item" && value === "insumo_directo") {
+          // precio queda como estaba, se desbloquea
+        }
+
+        // Si edita componentes APU y tipo es 'apu', auto-actualizar precio
+        if (field.startsWith("apu_") && (updated.is_from_apu || updated.tipo_item === "apu")) {
+          const sumAPU = updated.apu_materiales + updated.apu_mano_obra + updated.apu_equipo + updated.apu_transporte + updated.apu_indirectos;
+          updated.unit_price = sumAPU;
         }
 
         return updated;
@@ -675,7 +691,7 @@ export default function NuevoPresupuestoPage() {
               category: 'otro', description: '', pricing_mode: 'por_salida', quantity: 1, unit: 'und',
               unit_price: 0, metros_por_salida: null,
               apu_materiales: 0, apu_mano_obra: 0, apu_equipo: 0, apu_transporte: 0, apu_indirectos: 0,
-              apu_expanded: false, is_from_apu: false, subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
+              apu_expanded: false, is_from_apu: false, tipo_item: 'insumo_directo', subtotal: 0, discount_pct: 0, discount_amount: 0, total: 0, notes: null,
             };
             setItems([...items, newItem]);
             setCalculatedBudget(null);
@@ -715,13 +731,27 @@ export default function NuevoPresupuestoPage() {
                   <tr className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2">
                       <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-xs text-slate-800 outline-none font-semibold" />
-                      {!item.is_from_apu && (
-                        <button
-                          type="button"
-                          onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
-                          className={`mt-1 rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
-                          title="Análisis de Precios Unitarios"
-                        >APU</button>
+                      {item.is_from_apu ? (
+                        <span className="inline-block mt-1 rounded border border-primary/20 bg-primary/5 px-1.5 py-0 text-3xs font-bold text-primary">APU</span>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1">
+                          <select
+                            value={item.tipo_item || 'insumo_directo'}
+                            onChange={(e) => updateItem(item.id, "tipo_item", e.target.value)}
+                            className="rounded border border-slate-200 bg-slate-50 px-1 py-0 text-3xs text-slate-500 outline-none cursor-pointer"
+                          >
+                            <option value="insumo_directo">Insumo Directo</option>
+                            <option value="apu">APU</option>
+                          </select>
+                          {item.tipo_item === 'apu' && (
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
+                              className={`rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
+                              title="Constructor de APU"
+                            >Constructor APU</button>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-2">
@@ -741,7 +771,7 @@ export default function NuevoPresupuestoPage() {
                     <td className="px-4 py-2 text-right">
                       <div className="relative inline-block">
                         <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">$</span>
-                        {item.is_from_apu ? (
+                        {item.is_from_apu || item.tipo_item === 'apu' ? (
                           <span className="inline-block w-24 rounded border border-slate-100 bg-transparent pl-5 pr-1.5 py-0.5 text-sm font-bold font-mono text-slate-600 text-right">{formatCOP(item.unit_price)}</span>
                         ) : (
                           <input type="number" value={item.unit_price} onChange={(e) => { const precio = Number(e.target.value); updateItem(item.id, "unit_price", precio); const apu = calcularAPU(precio, item.category); updateItem(item.id, "apu_materiales", apu.materiales); updateItem(item.id, "apu_mano_obra", apu.mano_obra); updateItem(item.id, "apu_equipo", apu.equipo); updateItem(item.id, "apu_transporte", apu.transporte); updateItem(item.id, "apu_indirectos", apu.indirectos); }} min={0} className="w-24 rounded border border-slate-200 bg-slate-50 pl-5 pr-1.5 py-0.5 text-sm font-bold font-mono text-slate-800 outline-none focus:border-primary/50 text-right" />
