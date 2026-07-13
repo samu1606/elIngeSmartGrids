@@ -283,7 +283,6 @@ function NuevoPresupuestoContent() {
 
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
-  const [metrosOptions, setMetrosOptions] = useState<number[]>([5, 6, 7, 8, 9, 10, 11]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loadingCatalogo, setLoadingCatalogo] = useState(true);
   const [loadingBudget, setLoadingBudget] = useState(false); // loading para edición
@@ -295,17 +294,10 @@ function NuevoPresupuestoContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [catRes, metrosRes] = await Promise.all([
-          fetch(`${apiUrl}/api/presupuestos/catalogo`),
-          fetch(`${apiUrl}/api/presupuestos/config/metros`),
-        ]);
-        if (catRes.ok) {
-          const catData = await catRes.json();
+        const res = await fetch(`${apiUrl}/api/presupuestos/catalogo`);
+        if (res.ok) {
+          const catData = await res.json();
           setCatalogo(catData.catalogo || {});
-        }
-        if (metrosRes.ok) {
-          const metrosData = await metrosRes.json();
-          setMetrosOptions(metrosData.opciones_metros_por_salida || [5, 6, 7, 8, 9, 10, 11]);
         }
       } catch (err) {
         console.warn("Backend no disponible, usando datos locales:", err);
@@ -963,9 +955,6 @@ function NuevoPresupuestoContent() {
                       <select value={item.unit} onChange={(e) => updateItem(item.id, "unit", e.target.value)} className="w-full rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-2xs text-slate-600 outline-none focus:border-primary/50 cursor-pointer">
                         {ENGINEERING_UNITS.map(u => (<option key={u} value={u}>{u}</option>))}
                       </select>
-                      {item.pricing_mode === "por_salida" && item.metros_por_salida && (
-                        <select value={item.metros_por_salida} onChange={(e) => updateItem(item.id, "metros_por_salida", Number(e.target.value))} className="mt-1 w-full rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-2xs font-semibold text-amber-700 outline-none cursor-pointer">{metrosOptions.map(m => (<option key={m} value={m}>{m}m/sal</option>))}</select>
-                      )}
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-1 justify-center">
