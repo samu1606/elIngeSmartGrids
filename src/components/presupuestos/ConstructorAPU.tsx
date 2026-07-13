@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Search, Plus, Trash2, Wrench, Package, Truck, Users,
   Calculator, Save, ChevronRight, FlaskConical, ArrowLeft,
-  Loader2, CheckCircle, AlertCircle, X,
+  Loader2, CheckCircle, AlertCircle, X, Pencil,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { obtenerAPUCompleto, actualizarAPU, eliminarAPU, obtenerAPUs } from '@/lib/supabase/apus';
