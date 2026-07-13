@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Fragment, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment, Suspense, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getApiUrl } from "@/lib/api";
@@ -212,25 +212,45 @@ function unpackAPUData(notes: string | null): Partial<BudgetItem> {
 // PÁGINA PRINCIPAL
 // =============================================================================
 
-function NuevoPresupuestoContent() {
+function NuevoPresupuestoContent({ searchParams: pageSearchParams }: { searchParams?: Promise<{ edit?: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editBudgetId = searchParams.get('edit');
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
+  // Desempaquetar searchParams de la página (Next.js App Router — fuente más confiable)
+  // use() puede suspender → Suspense muestra fallback → cuando resuelve, pageEditId tiene el valor
+  const pageEditId: string | null = pageSearchParams ? (use(pageSearchParams)?.edit || null) : null;
+
   // REFS — inmunes a stale state (fundamental para prevenir race conditions)
-  const editIdRef = useRef<string | null>(editBudgetId); // captura inicial desde URL
+  const editIdRef = useRef<string | null>(null); // se llena con window.location (infalible) + searchParam
   const totalRef = useRef(0);
   const savingRef = useRef(false);
 
-  // Sincronizar editIdRef cuando el searchParam cambie (Suspense puede retrasarlo)
+  // CAPTURA GARANTIZADA del ID desde la URL — 4 fuentes en cascada:
+  //   1. pageEditId (use() sobre searchParams prop — Next.js App Router)
+  //   2. window.location.search (infalible, lee el navegador directamente)
+  //   3. useSearchParams().get('edit') (React hook, puede ser null en Suspense)
+  //   4. editIdRef.current (persiste entre renders, inmune a todo)
   useEffect(() => {
-    if (editBudgetId) {
-      editIdRef.current = editBudgetId;
-      console.log("📌 editIdRef sincronizado:", editBudgetId);
+    const fromWindow = new URLSearchParams(window.location.search).get('edit');
+    const fromReact = editBudgetId;
+
+    const finalId = pageEditId || fromWindow || fromReact;
+    if (finalId) {
+      editIdRef.current = finalId;
+      console.log("🔗 ID de edición capturado:", {
+        fromPage: pageEditId,
+        fromWindow,
+        fromReact,
+        final: finalId,
+        href: window.location.href,
+      });
+    } else {
+      console.log("🔗 Sin ID de edición — será CREATE", { href: window.location.href });
     }
-  }, [editBudgetId]);
+  }, [editBudgetId, pageEditId]); // se re-ejecuta si useSearchParams emite un cambio
 
   // Estados del formulario
   const [number, setNumber] = useState("");
@@ -354,7 +374,7 @@ function NuevoPresupuestoContent() {
         const { data: budget } = await supabase
           .from("budgets")
           .select("*")
-          .eq("id", editBudgetId)
+          .eq("id", effectiveId)
           .single();
 
         if (!budget) return;
@@ -373,7 +393,7 @@ function NuevoPresupuestoContent() {
         const { data: budgetItems } = await supabase
           .from("budget_items")
           .select("*")
-          .eq("budget_id", editBudgetId)
+          .eq("budget_id", effectiveId)
           .order("sort_order");
 
         if (budgetItems && budgetItems.length > 0) {
@@ -1125,10 +1145,10 @@ function NuevoPresupuestoContent() {
   );
 }
 
-export default function NuevoPresupuestoPage() {
+export default function NuevoPresupuestoPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
   return (
     <Suspense fallback={<div className="p-8 text-center text-sm text-slate-400">Cargando editor de presupuesto...</div>}>
-      <NuevoPresupuestoContent />
+      <NuevoPresupuestoContent searchParams={searchParams} />
     </Suspense>
   );
 }
