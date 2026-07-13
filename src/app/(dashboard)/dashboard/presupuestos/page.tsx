@@ -19,7 +19,8 @@ import {
   FileCheck,
   FilePlus,
   FlaskConical,
-  Pencil
+  Pencil,
+  Copy
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -300,6 +301,76 @@ export default function PresupuestosPage() {
     }
   };
 
+  // Copy Budget
+  const handleCopyBudget = async (budget: Budget) => {
+    try {
+      // 1. Fetch original items
+      const { data: originalItems, error: itemsError } = await supabase
+        .from("budget_items")
+        .select("*")
+        .eq("budget_id", budget.id)
+        .order("sort_order", { ascending: true });
+
+      if (itemsError) throw itemsError;
+
+      // 2. Create new budget header
+      const { data: newBudget, error: budgetError } = await supabase
+        .from("budgets")
+        .insert({
+          number: budget.number ? budget.number + "_COPIA" : null,
+          client_name: budget.client_name + " (Copia)",
+          project_name: budget.project_name,
+          issue_date: new Date().toISOString().split("T")[0],
+          valid_until: budget.valid_until,
+          total: budget.total,
+          status: "pendiente",
+        })
+        .select()
+        .single();
+
+      if (budgetError) throw budgetError;
+      if (!newBudget) throw new Error("No se pudo crear la copia del presupuesto.");
+
+      // 3. Copy items with new budget_id
+      if (originalItems && originalItems.length > 0) {
+        const clonedItems = originalItems.map((item: any, idx: number) => ({
+          budget_id: newBudget.id,
+          category: item.category || "otro",
+          description: item.description || "",
+          pricing_mode: item.pricing_mode || "por_salida",
+          quantity: item.quantity || 1,
+          unit: item.unit || "und",
+          unit_price: item.unit_price || 0,
+          metros_por_salida: item.metros_por_salida || null,
+          discount_pct: item.discount_pct || 0,
+          discount_amount: item.discount_amount || 0,
+          subtotal: item.subtotal || 0,
+          total: item.total || 0,
+          notes: item.notes || null,
+          apu_materiales: item.apu_materiales || 0,
+          apu_mano_obra: item.apu_mano_obra || 0,
+          apu_equipo: item.apu_equipo || 0,
+          apu_transporte: item.apu_transporte || 0,
+          apu_indirectos: item.apu_indirectos || 0,
+          is_from_apu: item.is_from_apu ?? false,
+          tipo_item: item.tipo_item || null,
+          sort_order: idx,
+        }));
+
+        const { error: insertError } = await supabase
+          .from("budget_items")
+          .insert(clonedItems);
+
+        if (insertError) throw insertError;
+      }
+
+      // 4. Refresh the list
+      loadData();
+    } catch (err: any) {
+      alert("No se pudo copiar el presupuesto: " + err.message);
+    }
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setNewNumber("");
@@ -559,7 +630,14 @@ export default function PresupuestosPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button 
+                      <button
+                        onClick={() => handleCopyBudget(budget)}
+                        className="text-slate-350 hover:text-emerald-500 hover:bg-emerald-50 p-1.5 rounded-lg transition-colors cursor-pointer"
+                        title="Copiar presupuesto"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleDeleteBudget(budget.id)}
                         className="text-slate-350 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                       >
