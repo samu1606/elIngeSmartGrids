@@ -1,11 +1,16 @@
 import { createClient } from '@/lib/supabase/client';
-import type { APU, DetalleAPU, Insumo } from '@/types/apu';
+import type { APU, Insumo } from '@/types/apu';
 
 const supabase = createClient();
 
-/** Insumo con su cantidad de rendimiento dentro de un APU */
+/** Respuesta de Supabase al hacer join `select(*, insumos(*))` — los campos de detalle_apu vienen planos */
 export interface APUDetalleCompleto {
-  detalle_apu: DetalleAPU;
+  id: number;
+  apu_id: number;
+  insumo_id: number;
+  cantidad_rendimiento: number;
+  created_at?: string;
+  updated_at?: string;
   insumos: Insumo;
 }
 
