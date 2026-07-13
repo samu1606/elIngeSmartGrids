@@ -19,7 +19,6 @@ import {
   Package,
   ChevronRight,
   Wrench,
-  FlaskConical,
 } from "lucide-react";
 import SelectorAPU from "@/components/presupuestos/SelectorAPU";
 import type { APUCompleto } from "@/lib/supabase/apus";
