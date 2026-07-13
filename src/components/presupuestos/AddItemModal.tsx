@@ -39,15 +39,15 @@ export default function AddItemModal({ open, onClose, onAddAPU }: AddItemModalPr
     setLoadingApus(false);
   };
 
-  // Cargar APU completo (con detalles + insumos) para ver desglose
-  const loadAPUCompleto = async (apuId: number) => {
+  // Cargar APU completo (con detalles + insumos) para confirmar
+  const loadAPUCompleto = async (apuId: number): Promise<APUCompleto | null> => {
     const { data: apu } = await supabase.from('apus').select('*').eq('id', apuId).single();
     const { data: detalles } = await supabase
       .from('detalle_apu')
       .select('*, insumos(*)')
       .eq('apu_id', apuId);
 
-    if (!apu) return;
+    if (!apu) return null;
 
     const detallesMapeados = (detalles || []).map((d: any) => ({
       ...d,
@@ -66,12 +66,9 @@ export default function AddItemModal({ open, onClose, onAddAPU }: AddItemModalPr
       0
     );
 
-    setSelectedAPUCompleto({
-      apu,
-      detalles: detallesMapeados,
-      costoTotal,
-    });
-    setShowDesglose(true);
+    const completo: APUCompleto = { apu, detalles: detallesMapeados, costoTotal };
+    setSelectedAPUCompleto(completo);
+    return completo;
   };
 
   const handleSelectAPU = async (id: number) => {
@@ -83,13 +80,10 @@ export default function AddItemModal({ open, onClose, onAddAPU }: AddItemModalPr
 
   const handleConfirmAdd = async () => {
     if (!selectedAPUId) return;
-    if (!selectedAPUCompleto) {
-      // Auto-cargar si no se ha visto el desglose aún
-      await loadAPUCompleto(selectedAPUId);
-      // El desglose se abre; al cerrarlo ya está disponible
-      return;
-    }
-    onAddAPU(selectedAPUCompleto);
+    // Cargar datos completos del APU y agregar al presupuesto
+    const completo = selectedAPUCompleto || await loadAPUCompleto(selectedAPUId);
+    if (!completo) return;
+    onAddAPU(completo);
     setSelectedAPUId(null);
     setSelectedAPU(null);
     setSelectedAPUCompleto(null);
@@ -166,9 +160,7 @@ export default function AddItemModal({ open, onClose, onAddAPU }: AddItemModalPr
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={async () => {
-                          await loadAPUCompleto(selectedAPU.id);
-                        }}
+                        onClick={() => setShowDesglose(true)}
                         className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-white px-4 py-2 text-xs font-bold text-primary hover:bg-primary/5 transition-all cursor-pointer"
                       >
                         Ver Desglose <ChevronRight className="w-3.5 h-3.5" />
@@ -200,9 +192,9 @@ export default function AddItemModal({ open, onClose, onAddAPU }: AddItemModalPr
 
       {/* Modal de Desglose */}
       <APUDesgloseModal
+        apuId={selectedAPUId ?? 0}
         open={showDesglose}
         onClose={() => setShowDesglose(false)}
-        apuCompleto={selectedAPUCompleto}
       />
     </>
   );
