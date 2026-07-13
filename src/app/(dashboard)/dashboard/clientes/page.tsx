@@ -155,7 +155,6 @@ export default function ClientesProyectosPage() {
   // modals
   const [showClientModal, setShowClientModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
-  const [projectForClientId, setProjectForClientId] = useState<string | null>(null);
 
   // client form
   const [cfName, setCfName] = useState("");
@@ -375,13 +374,22 @@ export default function ClientesProyectosPage() {
             Gestiona tus clientes y sus proyectos desde un solo lugar.
           </p>
         </div>
-        <button
-          onClick={() => setShowClientModal(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-green px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-green-dark active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-sm shadow-primary-green/20"
-        >
-          <Plus className="h-4.5 w-4.5 stroke-[3px]" />
-          <span>Nuevo Cliente</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => openProjectModal("")}
+            className="inline-flex items-center gap-2 rounded-xl border border-primary-green/30 bg-white px-4 py-2.5 text-xs font-bold text-primary-green hover:bg-primary-green/5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+          >
+            <Plus className="h-4.5 w-4.5 stroke-[3px]" />
+            <span>Nuevo Proyecto</span>
+          </button>
+          <button
+            onClick={() => setShowClientModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary-green px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-green-dark active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-sm shadow-primary-green/20"
+          >
+            <Plus className="h-4.5 w-4.5 stroke-[3px]" />
+            <span>Nuevo Cliente</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Sync notice ── */}
@@ -834,12 +842,35 @@ export default function ClientesProyectosPage() {
 
               <div>
                 <label className="block text-2xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Cliente</label>
-                <input
-                  type="text" value={pfClientName}
-                  onChange={(e) => setPfClientName(e.target.value)}
-                  className="block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 outline-none"
-                  placeholder="Nombre del cliente"
-                />
+                {pfClientName ? (
+                  <input
+                    type="text" value={pfClientName}
+                    readOnly
+                    className="block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 outline-none cursor-default"
+                  />
+                ) : (
+                  <select
+                    required
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__new__") {
+                        closeProjectModal();
+                        setShowClientModal(true);
+                      } else if (val) {
+                        setPfClientName(val);
+                      }
+                    }}
+                    className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-primary-green/65 focus:bg-white cursor-pointer"
+                  >
+                    <option value="" disabled>Seleccionar cliente...</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                    <option disabled>──────────────</option>
+                    <option value="__new__" className="text-primary-green font-bold">+ Crear nuevo cliente</option>
+                  </select>
+                )}
               </div>
 
               <div>
