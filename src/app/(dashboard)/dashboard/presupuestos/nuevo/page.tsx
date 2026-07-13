@@ -143,6 +143,70 @@ function calcularAPU(precioTotal: number, categoria: string) {
   };
 }
 
+// Empaquetar datos APU en el campo notes para persistencia
+function packAPUData(item: BudgetItem): string | null {
+  const hasAPU = item.apu_materiales > 0 || item.apu_mano_obra > 0 || item.apu_equipo > 0 || item.apu_transporte > 0 || item.apu_indirectos > 0 || item.is_from_apu || item.tipo_item === 'apu';
+  if (!hasAPU && !item.notes) return item.notes || null;
+
+  let existingInsumos: any[] = [];
+  if (item.notes) {
+    try { const parsed = JSON.parse(item.notes); if (Array.isArray(parsed)) existingInsumos = parsed; else if (parsed.apu) existingInsumos = parsed.insumos || []; } catch {}
+  }
+
+  return JSON.stringify({
+    apu: {
+      materiales: item.apu_materiales || 0,
+      mano_obra: item.apu_mano_obra || 0,
+      equipo: item.apu_equipo || 0,
+      transporte: item.apu_transporte || 0,
+      indirectos: item.apu_indirectos || 0,
+    },
+    is_from_apu: item.is_from_apu ?? false,
+    tipo_item: item.tipo_item || null,
+    insumos: existingInsumos,
+  });
+}
+
+// Desempaquetar datos APU desde notes
+function unpackAPUData(notes: string | null): Partial<BudgetItem> {
+  if (!notes) return {};
+  try {
+    const parsed = JSON.parse(notes);
+    // Nuevo formato: {apu: {...}, is_from_apu, tipo_item, insumos: [...]}
+    if (parsed.apu && typeof parsed.apu === 'object') {
+      return {
+        apu_materiales: parsed.apu.materiales || 0,
+        apu_mano_obra: parsed.apu.mano_obra || 0,
+        apu_equipo: parsed.apu.equipo || 0,
+        apu_transporte: parsed.apu.transporte || 0,
+        apu_indirectos: parsed.apu.indirectos || 0,
+        is_from_apu: parsed.is_from_apu ?? false,
+        tipo_item: parsed.tipo_item || undefined,
+        notes: JSON.stringify(parsed.insumos || []),
+      };
+    }
+    // Legacy: array de insumos = APU de biblioteca
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Recalcular APU desde los insumos
+      const mat = parsed.filter((d: any) => d.tipo === 'material').reduce((s: number, d: any) => s + (d.cantidad || 0) * (d.precio || 0), 0);
+      const mo = parsed.filter((d: any) => d.tipo === 'mano_obra').reduce((s: number, d: any) => s + (d.cantidad || 0) * (d.precio || 0), 0);
+      const eq = parsed.filter((d: any) => d.tipo === 'equipo').reduce((s: number, d: any) => s + (d.cantidad || 0) * (d.precio || 0), 0);
+      const tr = parsed.filter((d: any) => d.tipo === 'transporte').reduce((s: number, d: any) => s + (d.cantidad || 0) * (d.precio || 0), 0);
+      return {
+        apu_materiales: Math.round(mat),
+        apu_mano_obra: Math.round(mo),
+        apu_equipo: Math.round(eq),
+        apu_transporte: Math.round(tr),
+        apu_indirectos: 0,
+        is_from_apu: true,
+        tipo_item: undefined,
+        notes,
+      };
+    }
+  } catch {}
+  return {};
+}
+
 // Iconos por categoría para el catálogo
 // PÁGINA PRINCIPAL
 // =============================================================================
@@ -281,29 +345,32 @@ function NuevoPresupuestoContent() {
           .order("sort_order");
 
         if (budgetItems && budgetItems.length > 0) {
-          const loadedItems: BudgetItem[] = budgetItems.map((bi: any) => ({
-            id: bi.id?.toString() || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            category: bi.category || "otro",
-            description: bi.description || "",
-            pricing_mode: bi.pricing_mode || "por_salida",
-            quantity: bi.quantity || 1,
-            unit: bi.unit || "und",
-            unit_price: bi.unit_price || 0,
-            metros_por_salida: bi.metros_por_salida || null,
-            apu_materiales: bi.apu_materiales || 0,
-            apu_mano_obra: bi.apu_mano_obra || 0,
-            apu_equipo: bi.apu_equipo || 0,
-            apu_transporte: bi.apu_transporte || 0,
-            apu_indirectos: bi.apu_indirectos || 0,
-            apu_expanded: false,
-            is_from_apu: bi.is_from_apu ?? false,
-            tipo_item: bi.tipo_item || 'insumo_directo',
-            subtotal: bi.subtotal || 0,
-            discount_pct: bi.discount_pct || 0,
-            discount_amount: bi.discount_amount || 0,
-            total: bi.total || 0,
-            notes: bi.notes || null,
-          }));
+          const loadedItems: BudgetItem[] = budgetItems.map((bi: any) => {
+            const apuData = unpackAPUData(bi.notes);
+            return {
+              id: bi.id?.toString() || `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              category: bi.category || "otro",
+              description: bi.description || "",
+              pricing_mode: bi.pricing_mode || "por_salida",
+              quantity: bi.quantity || 1,
+              unit: bi.unit || "und",
+              unit_price: bi.unit_price || 0,
+              metros_por_salida: bi.metros_por_salida || null,
+              apu_materiales: apuData.apu_materiales ?? 0,
+              apu_mano_obra: apuData.apu_mano_obra ?? 0,
+              apu_equipo: apuData.apu_equipo ?? 0,
+              apu_transporte: apuData.apu_transporte ?? 0,
+              apu_indirectos: apuData.apu_indirectos ?? 0,
+              apu_expanded: false,
+              is_from_apu: apuData.is_from_apu ?? false,
+              tipo_item: apuData.tipo_item || 'insumo_directo',
+              subtotal: bi.subtotal || 0,
+              discount_pct: bi.discount_pct || 0,
+              discount_amount: bi.discount_amount || 0,
+              total: bi.total || 0,
+              notes: apuData.notes || bi.notes,
+            };
+          });
           setItems(loadedItems);
         }
       } catch (err) {
@@ -604,23 +671,16 @@ function NuevoPresupuestoContent() {
             unit: item.unit,
             unit_price: item.unit_price,
             metros_por_salida: item.metros_por_salida,
-            apu_materiales: item.apu_materiales,
-            apu_mano_obra: item.apu_mano_obra,
-            apu_equipo: item.apu_equipo,
-            apu_transporte: item.apu_transporte,
-            apu_indirectos: item.apu_indirectos,
-            is_from_apu: item.is_from_apu ?? false,
-            tipo_item: item.tipo_item || null,
             discount_pct: item.discount_pct,
             subtotal: item.subtotal,
             discount_amount: item.discount_amount,
             total: item.total,
-            notes: item.notes,
+            notes: packAPUData(item),
             sort_order: idx,
           }));
           await supabase.from("budget_items").insert(itemsToInsert);
         } catch (itemErr: any) {
-          console.warn("Items no actualizados:", itemErr.message);
+          console.warn("Items no guardados:", itemErr.message);
         }
 
         setSuccess("¡Presupuesto actualizado exitosamente!");
@@ -654,18 +714,11 @@ function NuevoPresupuestoContent() {
             unit: item.unit,
             unit_price: item.unit_price,
             metros_por_salida: item.metros_por_salida,
-            apu_materiales: item.apu_materiales,
-            apu_mano_obra: item.apu_mano_obra,
-            apu_equipo: item.apu_equipo,
-            apu_transporte: item.apu_transporte,
-            apu_indirectos: item.apu_indirectos,
-            is_from_apu: item.is_from_apu ?? false,
-            tipo_item: item.tipo_item || null,
             discount_pct: item.discount_pct,
             subtotal: item.subtotal,
             discount_amount: item.discount_amount,
             total: item.total,
-            notes: item.notes,
+            notes: packAPUData(item),
             sort_order: idx,
           }));
           await supabase.from("budget_items").insert(itemsToInsert);
