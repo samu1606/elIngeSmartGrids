@@ -95,15 +95,7 @@ const CATEGORIES: Record<string, string> = {
   otro: "Otro",
 };
 
-const PRICING_MODES: Record<string, string> = {
-  por_salida: "Por Salida (UND)",
-  por_ml: "Por Metro Lineal (ml)",
-};
-
-const UNITS_BY_PRICING: Record<string, string[]> = {
-  por_salida: ["und", "salida", "punto", "global", "hora", "día", "visita", "juego"],
-  por_ml: ["ml", "metro"],
-};
+const ENGINEERING_UNITS = ['und', 'ml', 'm2', 'kg', 'lb', 'salida', 'punto', 'global', 'hora', 'día', 'visita', 'juego'];
 
 // =============================================================================
 
@@ -358,14 +350,10 @@ export default function NuevoPresupuestoPage() {
 
         const updated = { ...item, [field]: value };
 
-        // Auto-ajustar unidad cuando cambia el modo
-        if (field === "pricing_mode") {
-          const defaultUnit = UNITS_BY_PRICING[value]?.[0] || "unidad";
-          updated.unit = defaultUnit;
-
-          if (value === "por_unidad") {
-            updated.metros_por_salida = null;
-          } else if (value === "por_ml" && !updated.metros_por_salida) {
+        // Auto-ajustar modo de precio según unidad
+        if (field === "unit") {
+          updated.pricing_mode = (value === "ml" || value === "metro") ? "por_ml" : "por_salida";
+          if (updated.pricing_mode === "por_ml" && !updated.metros_por_salida) {
             updated.metros_por_salida = 7;
           }
         }
@@ -742,7 +730,7 @@ export default function NuevoPresupuestoPage() {
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-3xs font-bold uppercase text-slate-400 tracking-wider">
                   <th className="px-4 py-2">Descripción</th>
-                  <th className="px-4 py-2 w-28">Modo</th>
+                  <th className="px-4 py-2 w-28">Unidad</th>
                   <th className="px-4 py-2 text-center w-20">Cant.</th>
                   <th className="px-4 py-2 text-right w-28">P. Unitario</th>
                   <th className="px-4 py-2 text-right w-28">TOTAL</th>
@@ -755,20 +743,19 @@ export default function NuevoPresupuestoPage() {
                   <tr className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2">
                       <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-xs text-slate-800 outline-none font-semibold" />
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <select value={item.category} onChange={(e) => updateItem(item.id, "category", e.target.value)} className="rounded border border-slate-200 bg-slate-50 px-1 py-0 text-3xs text-slate-500 outline-none cursor-pointer">
-                          {Object.entries(CATEGORIES).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                        </select>
+                      {(item.apu_materiales > 0 || item.apu_mano_obra > 0) && (
                         <button
                           type="button"
                           onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
-                          className={`rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
+                          className={`mt-1 rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
                           title="Análisis de Precios Unitarios"
                         >APU</button>
-                      </div>
+                      )}
                     </td>
                     <td className="px-4 py-2">
-                      <select value={item.pricing_mode} onChange={(e) => updateItem(item.id, "pricing_mode", e.target.value)} className="w-full rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-2xs text-slate-600 outline-none focus:border-primary/50 cursor-pointer">{Object.entries(PRICING_MODES).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}</select>
+                      <select value={item.unit} onChange={(e) => updateItem(item.id, "unit", e.target.value)} className="w-full rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-2xs text-slate-600 outline-none focus:border-primary/50 cursor-pointer">
+                        {ENGINEERING_UNITS.map(u => (<option key={u} value={u}>{u}</option>))}
+                      </select>
                       {item.pricing_mode === "por_salida" && item.metros_por_salida && (
                         <select value={item.metros_por_salida} onChange={(e) => updateItem(item.id, "metros_por_salida", Number(e.target.value))} className="mt-1 w-full rounded border border-amber-200 bg-amber-50 px-1 py-0.5 text-2xs font-semibold text-amber-700 outline-none cursor-pointer">{metrosOptions.map(m => (<option key={m} value={m}>{m}m/sal</option>))}</select>
                       )}

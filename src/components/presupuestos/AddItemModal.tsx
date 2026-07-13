@@ -174,7 +174,7 @@ export default function AddItemModal({ open, onClose, onAddItem, onAddAPU }: Add
           {/* Tabs */}
           <div className="flex border-b border-slate-200 px-6 shrink-0">
             <button onClick={() => setTab('catalogo')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${tab === 'catalogo' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-              <Package className="w-3.5 h-3.5" /> Materiales y Equipos
+              <Package className="w-3.5 h-3.5" /> Catálogo
             </button>
             <button onClick={() => { setTab('apu'); if (apus.length === 0) loadApus(); }} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${tab === 'apu' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
               <FlaskConical className="w-3.5 h-3.5" /> Biblioteca de APUs
