@@ -684,22 +684,68 @@ function NuevoPresupuestoContent() {
       return;
     }
 
-    const calc = computeTotal();
-    console.log("🔍 DEBUG handleUpdate:", calc, { editBudgetId: budgetId, itemsCount: items.length });
+    // =========================================================================
+    // CÁLCULO EXPLÍCITO E INLINE — sin helpers, sin closures, sin refs
+    // Cada variable se lee DIRECTAMENTE del estado de React al momento de ejecución
+    // =========================================================================
+    const subtotalNum = items.reduce((acc, item) => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unit_price) || 0;
+      const mts = Number(item.metros_por_salida) || 7;
+      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
+      const discount = subItem * (Number(item.discount_pct) / 100);
+      return acc + subItem - discount;
+    }, 0);
+
+    const admonNum = admonEnabled ? Math.round(subtotalNum * (Number(admonPct) / 100)) : 0;
+    const imprevistosNum = imprevistosEnabled ? Math.round(subtotalNum * (Number(imprevistosPct) / 100)) : 0;
+    const utilidadNum = utilidadEnabled ? Math.round(subtotalNum * (Number(utilidadPct) / 100)) : 0;
+    const baseAIU = subtotalNum + admonNum + imprevistosNum + utilidadNum;
+    const ivaNum = ivaEnabled ? Math.round(baseAIU * (Number(ivaPct) / 100)) : 0;
+    const retencionNum = retencionEnabled ? Math.round(baseAIU * (Number(retencionPct) / 100)) : 0;
+    const valorTotalFinal = Math.round(baseAIU + ivaNum - retencionNum);
+
+    console.log("🔍 DEBUG handleUpdate INLINE:", {
+      subtotal: subtotalNum,
+      admon: { enabled: admonEnabled, pct: admonPct, amount: admonNum },
+      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: imprevistosNum },
+      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: utilidadNum },
+      baseAIU,
+      iva: { enabled: ivaEnabled, pct: ivaPct, amount: ivaNum },
+      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: retencionNum },
+      valorTotalFinal,
+      itemsCount: items.length,
+    });
 
     // VALIDACIÓN DE SEGURIDAD — nunca enviar $0
-    if (!calc.total || calc.total === 0) {
-      console.error("⛔ ABORTING handleUpdate: total calculado es $0 — posible race condition");
-      setError("Error: el total calculado es $0. Revise los ítems.");
+    if (!valorTotalFinal || valorTotalFinal <= 0) {
+      console.error("⛔ ABORTING handleUpdate: valorTotalFinal es $0 o negativo");
+      setError("Error: el total calculado es $0. Revise los ítems y los precios.");
       return;
     }
 
-    const budgetPayload = { ...payloadComun(), total: calc.total };
-    console.log("🚀 PAYLOAD Supabase (UPDATE):", budgetPayload);
+    // =========================================================================
+    // PAYLOAD CONSTRUIDO A MANO — sin spreads, sin helpers, sin payloadComun()
+    // Cada campo se asigna explícitamente para evitar cualquier override accidental
+    // =========================================================================
+    console.log("🚀 PAYLOAD Supabase (UPDATE):", {
+      id: budgetId,
+      total: valorTotalFinal,
+      number,
+      client_name: clientName,
+      project_name: projectName,
+    });
 
     const { error: budgetError, data: updatedData } = await supabase
       .from("budgets")
-      .update(budgetPayload)
+      .update({
+        number: number,
+        client_name: clientName,
+        project_name: projectName,
+        issue_date: issueDate,
+        valid_until: validUntil,
+        total: valorTotalFinal,
+      })
       .eq("id", budgetId)
       .select();
 
@@ -717,11 +763,8 @@ function NuevoPresupuestoContent() {
     setSuccess("¡Presupuesto actualizado exitosamente!");
     sessionStorage.removeItem('editingBudgetId');
 
-    // REDIRECCIÓN INMEDIATA — window.location.replace() pisa el historial.
-    // Es IMPOSIBLE volver atrás con el botón del navegador y remontar el componente.
-    // No hay setTimeout — se ejecuta en el mismo tick, matando cualquier render pendiente.
     window.location.replace('/dashboard/presupuestos');
-    return; // por si acaso, cortar ejecución
+    return;
   };
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
@@ -738,22 +781,44 @@ function NuevoPresupuestoContent() {
       return;
     }
 
-    const calc = computeTotal();
-    console.log("🔍 DEBUG handleCreate:", calc, { itemsCount: items.length });
+    // CÁLCULO EXPLÍCITO E INLINE (mismo que handleUpdate)
+    const subtotalNum = items.reduce((acc, item) => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unit_price) || 0;
+      const mts = Number(item.metros_por_salida) || 7;
+      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
+      const discount = subItem * (Number(item.discount_pct) / 100);
+      return acc + subItem - discount;
+    }, 0);
+    const admonNum = admonEnabled ? Math.round(subtotalNum * (Number(admonPct) / 100)) : 0;
+    const imprevistosNum = imprevistosEnabled ? Math.round(subtotalNum * (Number(imprevistosPct) / 100)) : 0;
+    const utilidadNum = utilidadEnabled ? Math.round(subtotalNum * (Number(utilidadPct) / 100)) : 0;
+    const baseAIU = subtotalNum + admonNum + imprevistosNum + utilidadNum;
+    const ivaNum = ivaEnabled ? Math.round(baseAIU * (Number(ivaPct) / 100)) : 0;
+    const retencionNum = retencionEnabled ? Math.round(baseAIU * (Number(retencionPct) / 100)) : 0;
+    const valorTotalFinal = Math.round(baseAIU + ivaNum - retencionNum);
 
-    // VALIDACIÓN DE SEGURIDAD
-    if (!calc.total || calc.total === 0) {
-      console.error("⛔ ABORTING handleCreate: total calculado es $0");
+    console.log("🔍 DEBUG handleCreate INLINE:", { subtotal: subtotalNum, valorTotalFinal, itemsCount: items.length });
+
+    if (!valorTotalFinal || valorTotalFinal <= 0) {
+      console.error("⛔ ABORTING handleCreate: valorTotalFinal es $0");
       setError("Error: el total calculado es $0. Agregue ítems con precios.");
       return;
     }
 
-    const budgetPayload = { ...payloadComun(), total: calc.total, status: "pendiente" };
-    console.log("🚀 PAYLOAD Supabase (INSERT):", budgetPayload);
+    console.log("🚀 PAYLOAD Supabase (INSERT):", { total: valorTotalFinal, number, client_name: clientName });
 
     const { data: budgetData, error: budgetError } = await supabase
       .from("budgets")
-      .insert(budgetPayload)
+      .insert({
+        number: number,
+        client_name: clientName,
+        project_name: projectName,
+        issue_date: issueDate,
+        valid_until: validUntil,
+        total: valorTotalFinal,
+        status: "pendiente",
+      })
       .select()
       .single();
 
