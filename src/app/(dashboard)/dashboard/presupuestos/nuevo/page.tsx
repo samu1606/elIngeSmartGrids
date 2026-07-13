@@ -575,6 +575,8 @@ function NuevoPresupuestoContent() {
 
   const guardarPresupuesto = async () => {
     if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
+    if (!projectName.trim()) { setError("Ingrese el nombre del proyecto."); return; }
+    if (!clientName) { setError("Seleccione o ingrese un cliente."); return; }
     setError(null);
     setGuardando(true);
 
