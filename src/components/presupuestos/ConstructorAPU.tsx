@@ -293,8 +293,8 @@ export default function ConstructorAPUPage() {
 
       {/* Buscador de insumos — Select con filtro + Quick Create */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative w-full sm:w-[30%] shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
@@ -305,7 +305,7 @@ export default function ConstructorAPUPage() {
             />
           </div>
           <select
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 cursor-pointer min-w-[200px]"
+            className="w-full sm:flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 cursor-pointer min-w-0"
             value=""
             onChange={(e) => {
               const id = Number(e.target.value);
