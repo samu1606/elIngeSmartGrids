@@ -440,8 +440,6 @@ function NuevoPresupuestoContent() {
 
     const calc = calculateTotal();
 
-    const calc = calculateTotal();
-
     setCalculatedItems(itemsCalc);
     setSubtotalGeneral(calc.sub);
     setAdmonAmount(calc.adm);
