@@ -654,6 +654,12 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
+    // Recalcular total con impuestos (no confiar en backend)
+    const subtotalBase = calculatedBudget.subtotal_general;
+    const ivaCalculado = Math.round(subtotalBase * (calculatedBudget.iva_pct / 100));
+    const retencionCalculada = Math.round(subtotalBase * (calculatedBudget.retencion_pct / 100));
+    const totalConImpuestos = subtotalBase + ivaCalculado - retencionCalculada;
+
     try {
       if (editBudgetId) {
         // ACTUALIZAR presupuesto existente
@@ -665,7 +671,7 @@ function NuevoPresupuestoContent() {
             project_name: calculatedBudget.project_name,
             issue_date: calculatedBudget.issue_date,
             valid_until: calculatedBudget.valid_until,
-            total: calculatedBudget.total_final,
+            total: totalConImpuestos,
           })
           .eq("id", editBudgetId);
 
@@ -715,7 +721,7 @@ function NuevoPresupuestoContent() {
             project_name: calculatedBudget.project_name,
             issue_date: calculatedBudget.issue_date,
             valid_until: calculatedBudget.valid_until,
-            total: calculatedBudget.total_final,
+            total: totalConImpuestos,
             status: "pendiente",
           })
           .select()
