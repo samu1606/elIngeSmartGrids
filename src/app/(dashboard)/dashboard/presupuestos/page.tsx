@@ -545,7 +545,10 @@ export default function PresupuestosPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 
-                        onClick={() => router.push(`/dashboard/presupuestos/nuevo?edit=${budget.id}`)}
+                        onClick={() => {
+                          sessionStorage.setItem('editingBudgetId', budget.id);
+                          router.push(`/dashboard/presupuestos/nuevo?edit=${budget.id}`);
+                        }}
                         className="text-slate-350 hover:text-primary hover:bg-primary/5 p-1.5 rounded-lg transition-colors cursor-pointer"
                         title="Editar presupuesto"
                       >

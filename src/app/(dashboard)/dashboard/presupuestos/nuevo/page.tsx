@@ -219,45 +219,58 @@ function NuevoPresupuestoContent() {
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
-  // CAPTURA DEL ID — directo desde el navegador, sin hooks, sin Suspense, sin Promises
-  // `window.location.search` es la fuente de verdad absoluta en cliente.
+  // CAPTURA DEL ID — 5 fuentes en cascada:
+  //   1. sessionStorage (puente infalible entre páginas, sin URL)
+  //   2. URL query param (?edit=) — de router.push o URL directa
+  //   3. URL path segment (/nuevo/PRE-XXX) — por si es ruta dinámica
+  //   4. useSearchParams() hook (React, puede fallar con Suspense)
+  //   5. editIdRef (persiste entre renders)
   const getEditIdFromUrl = () => {
     if (typeof window === 'undefined') return null;
     return new URLSearchParams(window.location.search).get('edit');
   };
-  const browserEditId = getEditIdFromUrl();
+  const getEditIdFromPath = () => {
+    if (typeof window === 'undefined') return null;
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const last = parts[parts.length - 1];
+    // Si el último segmento NO es 'nuevo' y empieza con PRE-, es un ID
+    if (last !== 'nuevo' && /^[A-Z]+-\d+$/i.test(last)) return last;
+    return null;
+  };
+  const getEditIdFromStorage = () => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('editingBudgetId');
+  };
 
-  // LOG FORENSE: dump completo de la URL al montar el componente
-  // Esto nos dirá EXACTAMENTE qué hay (y qué no hay) en la barra de direcciones
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const rawSearch = window.location.search;
-    const rawHref = window.location.href;
-    const rawPathname = window.location.pathname;
-    const allParams: Record<string, string> = {};
-    new URLSearchParams(rawSearch).forEach((v, k) => { allParams[k] = v; });
-    console.log("🧬 URL FORENSE — montaje del componente:", {
-      href: rawHref,
-      pathname: rawPathname,
-      search: rawSearch || '(vacío)',
-      allParams,
-      editParam: new URLSearchParams(rawSearch).get('edit'),
-      timestamp: new Date().toISOString(),
-    });
-  }, []); // solo una vez al montar
+  // Fuente #1: sessionStorage (la más confiable)
+  const storageId = getEditIdFromStorage();
+  const browserEditId = getEditIdFromUrl() || getEditIdFromPath() || storageId;
 
-  // REFS — inmunes a stale state
+  // REFS
   const editIdRef = useRef<string | null>(browserEditId);
   const totalRef = useRef(0);
   const savingRef = useRef(false);
 
-  // Sincronizar: si useSearchParams eventualmente nos da el valor, actualizar ref
+  // DIAGNÓSTICO COMPLETO al montar
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    console.log("🧬 URL COMPLETA:", window.location.href);
+    console.log("🧬 PATHNAME:", window.location.pathname);
+    console.log("🧬 SEARCH:", window.location.search || '(vacío)');
+    console.log("🧬 sessionStorage editBudgetId:", sessionStorage.getItem('editingBudgetId'));
+    console.log("🧬 HARDCODED TEST (último segmento):", getEditIdFromPath());
+    console.log("🧬 editIdRef inicial:", editIdRef.current);
+  }, []);
+
+  // Sincronizar con useSearchParams cuando resuelva
   useEffect(() => {
     const fromWindow = getEditIdFromUrl();
-    const final = editBudgetId || fromWindow;
+    const fromPath = getEditIdFromPath();
+    const fromStorage = getEditIdFromStorage();
+    const final = editBudgetId || fromWindow || fromPath || fromStorage;
     if (final && final !== editIdRef.current) {
       editIdRef.current = final;
-      console.log("🔗 editIdRef actualizado:", { fromWindow, fromHook: editBudgetId, ref: editIdRef.current });
+      console.log("🔗 editIdRef actualizado:", { hook: editBudgetId, window: fromWindow, path: fromPath, storage: fromStorage, final });
     }
   }, [editBudgetId]);
 
@@ -664,7 +677,7 @@ function NuevoPresupuestoContent() {
 
   // UPDATE — Solo para edición (nunca dispara INSERT)
   const handleUpdate = async () => {
-    const budgetId = editIdRef.current || getEditIdFromUrl() || editBudgetId;
+    const budgetId = editIdRef.current || getEditIdFromUrl() || getEditIdFromPath() || getEditIdFromStorage() || editBudgetId;
     if (!budgetId) {
       console.error("⛔ handleUpdate llamada sin editBudgetId — abortando");
       setError("Error: no se encontró el ID del presupuesto a editar.");
@@ -702,11 +715,12 @@ function NuevoPresupuestoContent() {
     }
 
     setSuccess("¡Presupuesto actualizado exitosamente!");
+    sessionStorage.removeItem('editingBudgetId'); // limpiar puente
   };
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
   const handleCreate = async () => {
-    const hasEditId = !!(editIdRef.current || getEditIdFromUrl() || editBudgetId);
+    const hasEditId = !!(editIdRef.current || getEditIdFromUrl() || getEditIdFromPath() || getEditIdFromStorage() || editBudgetId);
     if (hasEditId) {
       console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO (no redirigir)");
       return;
@@ -759,18 +773,21 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
-    // Lectura fresca de 3 fuentes al momento del click
-    const capturedEditId = editIdRef.current || getEditIdFromUrl() || editBudgetId;
+    // CAPTURA AGRESIVA al momento del click — 5 fuentes
+    const capturedEditId = editIdRef.current
+      || getEditIdFromUrl()
+      || getEditIdFromPath()
+      || getEditIdFromStorage()
+      || editBudgetId;
 
-    // DUMP FORENSE al momento del click — TODOS los query params visibles
-    const rawUrl = typeof window !== 'undefined' ? window.location.href : 'SSR';
-    const rawSearch = typeof window !== 'undefined' ? window.location.search : 'SSR';
-    const allUrlParams: Record<string, string> = {};
-    if (typeof window !== 'undefined') {
-      new URLSearchParams(window.location.search).forEach((v, k) => { allUrlParams[k] = v; });
-    }
-    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| ref:", editIdRef.current, "| browser:", getEditIdFromUrl(), "| hook:", editBudgetId, "| items:", items.length);
-    console.log("🧬 URL al guardar:", { rawUrl, rawSearch, allUrlParams, capturedEditId });
+    console.log("🧬 URL COMPLETA al guardar:", typeof window !== 'undefined' ? window.location.href : 'SSR');
+    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT",
+      "| ref:", editIdRef.current,
+      "| query:", getEditIdFromUrl(),
+      "| path:", getEditIdFromPath(),
+      "| storage:", getEditIdFromStorage(),
+      "| hook:", editBudgetId,
+      "| final:", capturedEditId);
 
     try {
       if (capturedEditId) {
