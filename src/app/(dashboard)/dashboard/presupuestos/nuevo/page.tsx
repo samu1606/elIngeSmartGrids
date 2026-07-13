@@ -726,33 +726,36 @@ export default function NuevoPresupuestoPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {items.map((item) => (
+                {items.map((item, idx) => (
                   <Fragment key={item.id}>
                   <tr className="group hover:bg-slate-50/50 transition-colors">
                     <td className="px-4 py-2">
-                      <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-xs text-slate-800 outline-none font-semibold" />
-                      {item.is_from_apu ? (
-                        <span className="inline-block mt-1 rounded border border-primary/20 bg-primary/5 px-1.5 py-0 text-3xs font-bold text-primary">APU</span>
-                      ) : (
-                        <div className="flex items-center gap-1 mt-1">
-                          <select
-                            value={item.tipo_item || 'insumo_directo'}
-                            onChange={(e) => updateItem(item.id, "tipo_item", e.target.value)}
-                            className="rounded border border-slate-200 bg-slate-50 px-1 py-0 text-3xs text-slate-500 outline-none cursor-pointer"
-                          >
-                            <option value="insumo_directo">Insumo Directo</option>
-                            <option value="apu">APU</option>
-                          </select>
-                          {item.tipo_item === 'apu' && (
-                            <button
-                              type="button"
-                              onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
-                              className={`rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
-                              title="Constructor de APU"
-                            >Constructor APU</button>
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-xs font-bold text-slate-400 mt-1 shrink-0 select-none">{idx + 1}.</span>
+                        <div className="flex-1 min-w-0">
+                          <input type="text" value={item.description} onChange={(e) => updateItem(item.id, "description", e.target.value)} placeholder="Descripción" className="w-full rounded border border-transparent hover:border-slate-200 focus:border-primary/50 bg-transparent px-1.5 py-0.5 text-sm text-slate-800 outline-none font-semibold" />
+                          {!item.is_from_apu && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <select
+                                value={item.tipo_item || 'insumo_directo'}
+                                onChange={(e) => updateItem(item.id, "tipo_item", e.target.value)}
+                                className="rounded border border-slate-200 bg-slate-50 px-1 py-0 text-3xs text-slate-500 outline-none cursor-pointer"
+                              >
+                                <option value="insumo_directo">Insumo Directo</option>
+                                <option value="apu">APU</option>
+                              </select>
+                              {item.tipo_item === 'apu' && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(item.id, "apu_expanded", !item.apu_expanded)}
+                                  className={`rounded border px-1 py-0 text-3xs font-bold transition-all cursor-pointer ${item.apu_expanded ? 'border-primary/30 bg-primary/10 text-primary' : 'border-slate-200 bg-slate-50 text-slate-400 hover:border-primary/20 hover:text-primary'}`}
+                                  title="Constructor de APU"
+                                >Constructor APU</button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <select value={item.unit} onChange={(e) => updateItem(item.id, "unit", e.target.value)} className="w-full rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-2xs text-slate-600 outline-none focus:border-primary/50 cursor-pointer">
