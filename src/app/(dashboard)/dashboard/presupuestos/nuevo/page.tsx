@@ -717,18 +717,24 @@ function NuevoPresupuestoContent() {
     setSuccess("¡Presupuesto actualizado exitosamente!");
     sessionStorage.removeItem('editingBudgetId');
 
-    // Redirección DURA — previene que React remonte el componente y dispare INSERT fantasma
-    // window.location.href fuerza recarga completa, matando cualquier estado residual
-    setTimeout(() => {
-      window.location.href = '/dashboard/presupuestos';
-    }, 800);
+    // REDIRECCIÓN INMEDIATA — window.location.replace() pisa el historial.
+    // Es IMPOSIBLE volver atrás con el botón del navegador y remontar el componente.
+    // No hay setTimeout — se ejecuta en el mismo tick, matando cualquier render pendiente.
+    window.location.replace('/dashboard/presupuestos');
+    return; // por si acaso, cortar ejecución
   };
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
   const handleCreate = async () => {
+    // GUARD ABSOLUTO: si no hay items o el total es $0, no insertar NADA
+    if (items.length === 0) {
+      console.error("⛔ ABORTING handleCreate: no hay items");
+      return;
+    }
+
     const hasEditId = !!(editIdRef.current || getEditIdFromUrl() || getEditIdFromPath() || getEditIdFromStorage() || editBudgetId);
     if (hasEditId) {
-      console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO (no redirigir)");
+      console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO");
       return;
     }
 
