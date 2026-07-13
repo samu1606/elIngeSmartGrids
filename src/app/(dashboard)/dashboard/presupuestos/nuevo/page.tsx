@@ -219,6 +219,19 @@ function NuevoPresupuestoContent() {
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
+  // REFS — inmunes a stale state (fundamental para prevenir race conditions)
+  const editIdRef = useRef<string | null>(editBudgetId); // captura inicial desde URL
+  const totalRef = useRef(0);
+  const savingRef = useRef(false);
+
+  // Sincronizar editIdRef cuando el searchParam cambie (Suspense puede retrasarlo)
+  useEffect(() => {
+    if (editBudgetId) {
+      editIdRef.current = editBudgetId;
+      console.log("📌 editIdRef sincronizado:", editBudgetId);
+    }
+  }, [editBudgetId]);
+
   // Estados del formulario
   const [number, setNumber] = useState("");
   const [clientName, setClientName] = useState("");
@@ -265,8 +278,6 @@ function NuevoPresupuestoContent() {
   const [ivaAmount, setIvaAmount] = useState(0);
   const [retencionAmount, setRetencionAmount] = useState(0);
   const [totalFinal, setTotalFinal] = useState(0);
-  const totalRef = useRef(0); // ref inmutable para guardar — nunca stale
-  const savingRef = useRef(false); // previene doble ejecución (race condition)
 
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
@@ -335,7 +346,8 @@ function NuevoPresupuestoContent() {
 
   // Cargar presupuesto para edición
   useEffect(() => {
-    if (!editBudgetId) return;
+    const effectiveId = editBudgetId || editIdRef.current;
+    if (!effectiveId) return;
     setLoadingBudget(true);
     const loadBudget = async () => {
       try {
@@ -623,7 +635,7 @@ function NuevoPresupuestoContent() {
 
   // UPDATE — Solo para edición (nunca dispara INSERT)
   const handleUpdate = async () => {
-    const budgetId = editBudgetId;
+    const budgetId = editIdRef.current || editBudgetId;
     if (!budgetId) {
       console.error("⛔ handleUpdate llamada sin editBudgetId — abortando");
       setError("Error: no se encontró el ID del presupuesto a editar.");
@@ -665,9 +677,10 @@ function NuevoPresupuestoContent() {
 
   // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
   const handleCreate = async () => {
-    if (editBudgetId) {
-      console.error("⛔ handleCreate llamada con editBudgetId activo — ABORTANDO (no redirigir para evitar duplicado)");
-      return; // NO redirigir a handleUpdate — ya se ejecutó desde guardarPresupuesto
+    const hasEditId = !!(editIdRef.current || editBudgetId);
+    if (hasEditId) {
+      console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO (no redirigir)");
+      return;
     }
 
     const calc = computeTotal();
@@ -717,10 +730,10 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
-    // Capturar editBudgetId ANTES del await (evita que cambie durante operación async)
-    const capturedEditId = editBudgetId;
+    // USAR REF como fuente de verdad (editBudgetId state puede ser null en render inicial)
+    const capturedEditId = editIdRef.current || editBudgetId;
 
-    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| editBudgetId:", capturedEditId, "| items:", items.length);
+    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| editIdRef:", editIdRef.current, "| searchParam:", editBudgetId, "| items:", items.length);
 
     try {
       if (capturedEditId) {
