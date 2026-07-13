@@ -258,6 +258,10 @@ export default function NuevoPresupuestoPage() {
   const [clientEmail, setClientEmail] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectAddress, setProjectAddress] = useState("");
+
+  // Clients & Projects for selects
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string; client_name: string }[]>([]);
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [validUntil, setValidUntil] = useState(() => {
     const d = new Date();
@@ -338,6 +342,23 @@ export default function NuevoPresupuestoPage() {
       }
     };
     loadLastNumber();
+  }, [supabase]);
+
+  // Cargar clientes y proyectos para los selects
+  useEffect(() => {
+    const loadRelations = async () => {
+      try {
+        const [{ data: cData }, { data: pData }] = await Promise.all([
+          supabase.from("clients").select("id, name").order("name", { ascending: true }),
+          supabase.from("projects").select("id, name, client_name").order("name", { ascending: true }),
+        ]);
+        if (cData) setClients(cData);
+        if (pData) setProjects(pData);
+      } catch (err) {
+        console.warn("No se pudieron cargar clientes/proyectos:", err);
+      }
+    };
+    loadRelations();
   }, [supabase]);
 
   // =========================================================================
@@ -677,17 +698,77 @@ export default function NuevoPresupuestoPage() {
       {success && (<div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-700"><CheckCircle className="h-5 w-5 shrink-0 text-emerald-500" /><span>{success}</span></div>)}
 
       {/* ================================================================ */}
-      {/* CLIENTE + PROYECTO — Solo lo esencial */}
+      {/* CLIENTE + PROYECTO — Selects desde Supabase */}
       {/* ================================================================ */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-3xs font-bold uppercase text-slate-400 tracking-wider mb-1">Cliente *</label>
-            <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nombre o razón social" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all" />
+            {clients.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <select disabled className="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-600 outline-none cursor-not-allowed">
+                  <option>No hay clientes</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/clientes")}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-primary-green/30 bg-primary-green/5 px-3 py-2.5 text-xs font-bold text-primary-green hover:bg-primary-green/10 transition-all cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Crear Cliente
+                </button>
+              </div>
+            ) : (
+              <select
+                required
+                value={clientName}
+                onChange={(e) => { setClientName(e.target.value); setProjectName(""); }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer"
+              >
+                <option value="">-- Seleccionar cliente --</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="md:col-span-2">
-            <label className="block text-3xs font-bold uppercase text-slate-400 tracking-wider mb-1">Nombre del Proyecto *</label>
-            <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Instalación Eléctrica Comercial, Residencial, Industrial..." className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all" />
+            <label className="block text-3xs font-bold uppercase text-slate-400 tracking-wider mb-1">Proyecto *</label>
+            {!clientName ? (
+              <select disabled className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm text-slate-400 outline-none cursor-not-allowed">
+                <option>Selecciona un cliente primero</option>
+              </select>
+            ) : (() => {
+              const clientProjects = projects.filter(p => p.client_name === clientName);
+              if (clientProjects.length === 0) {
+                return (
+                  <div className="flex items-center gap-2">
+                    <select disabled className="flex-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-600 outline-none cursor-not-allowed">
+                      <option>Sin proyectos para este cliente</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/dashboard/clientes")}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-primary-green/30 bg-primary-green/5 px-3 py-2.5 text-xs font-bold text-primary-green hover:bg-primary-green/10 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Crear Proyecto
+                    </button>
+                  </div>
+                );
+              }
+              return (
+                <select
+                  required
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer"
+                >
+                  <option value="">-- Seleccionar proyecto --</option>
+                  {clientProjects.map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              );
+            })()}
           </div>
         </div>
       </div>
