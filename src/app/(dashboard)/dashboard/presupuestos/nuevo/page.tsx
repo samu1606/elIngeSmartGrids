@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getApiUrl } from "@/lib/api";
 import {
-  Plus,
+  Plus, Package,
   Trash2,
   Save,
   ArrowLeft,
