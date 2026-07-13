@@ -438,24 +438,18 @@ function NuevoPresupuestoContent() {
       return { ...item, subtotal: Math.round(subtotal * 100) / 100, discount_amount: Math.round(discount * 100) / 100, total: Math.round(total * 100) / 100 };
     });
 
-    const sub = itemsCalc.reduce((acc, i) => acc + i.total, 0);
-    const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
-    const imp = imprevistosEnabled ? Math.round(sub * (imprevistosPct / 100)) : 0;
-    const uti = utilidadEnabled ? Math.round(sub * (utilidadPct / 100)) : 0;
-    const aiuTotal = adm + imp + uti;
-    const base = sub + aiuTotal;
-    const iv = ivaEnabled ? Math.round(base * (ivaPct / 100)) : 0;
-    const rt = retencionEnabled ? Math.round(base * (retencionPct / 100)) : 0;
-    const tf = base + iv - rt;
+    const calc = calculateTotal();
+
+    const calc = calculateTotal();
 
     setCalculatedItems(itemsCalc);
-    setSubtotalGeneral(sub);
-    setAdmonAmount(adm);
-    setImprevistosAmount(imp);
-    setUtilidadAmount(uti);
-    setIvaAmount(iv);
-    setRetencionAmount(rt);
-    setTotalFinal(tf);
+    setSubtotalGeneral(calc.sub);
+    setAdmonAmount(calc.adm);
+    setImprevistosAmount(calc.imp);
+    setUtilidadAmount(calc.uti);
+    setIvaAmount(calc.iv);
+    setRetencionAmount(calc.rt);
+    setTotalFinal(calc.total);
   }, [items, admonEnabled, admonPct, imprevistosEnabled, imprevistosPct, utilidadEnabled, utilidadPct, ivaEnabled, ivaPct, retencionEnabled, retencionPct]);
 
   // Cargar clientes y proyectos para los selects
@@ -580,7 +574,25 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
-    const totalConImpuestos = totalFinal;
+    // Recalcular total final con valores actuales (evita stale state del useEffect)
+    const calc = calculateTotal();
+    const totalConImpuestos = calc.total;
+
+    console.log("🔍 DEBUG guardarPresupuesto:", {
+      subtotal: calc.sub,
+      admon: { enabled: admonEnabled, pct: admonPct, amount: calc.adm },
+      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: calc.imp },
+      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: calc.uti },
+      iva: { enabled: ivaEnabled, pct: ivaPct, amount: calc.iv },
+      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: calc.rt },
+      baseAIU: calc.base,
+      totalFinal: totalConImpuestos,
+      itemsCount: items.length,
+      editBudgetId,
+      number,
+      clientName,
+      projectName,
+    });
 
     try {
       if (editBudgetId) {
@@ -709,6 +721,28 @@ function NuevoPresupuestoContent() {
   // ITEMS AGRUPADOS POR CATEGORÍA
   // =========================================================================
 
+
+  // =========================================================================
+  // CALCULADORA DE TOTAL FINAL (función pura — evita stale state)
+  // =========================================================================
+
+  const calculateTotal = () => {
+    const sub = items.reduce((acc, item) => {
+      const qty = item.quantity;
+      const price = item.unit_price;
+      const mts = item.metros_por_salida || 7;
+      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
+      const discount = subItem * (item.discount_pct / 100);
+      return acc + subItem - discount;
+    }, 0);
+    const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
+    const imp = imprevistosEnabled ? Math.round(sub * (imprevistosPct / 100)) : 0;
+    const uti = utilidadEnabled ? Math.round(sub * (utilidadPct / 100)) : 0;
+    const base = sub + adm + imp + uti;
+    const iv = ivaEnabled ? Math.round(base * (ivaPct / 100)) : 0;
+    const rt = retencionEnabled ? Math.round(base * (retencionPct / 100)) : 0;
+    return { sub, adm, imp, uti, base, iv, rt, total: Math.round(base + iv - rt) };
+  };
 
   // =========================================================================
   // COMPONENTE AUXILIAR: LiquidacionRow
@@ -1017,7 +1051,7 @@ function NuevoPresupuestoContent() {
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               {/* Encabezado */}
               <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3">
-                <h3 className="text-xs font-black text-white uppercase tracking-wider">Liquidación</h3>
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">SUBTOTAL</h3>
               </div>
               {/* Campos */}
               <div className="px-5 py-4 space-y-3">
