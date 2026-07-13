@@ -15,8 +15,6 @@ import {
   FileText,
   Wrench,
   PenTool,
-  Percent,
-  Settings,
 } from "lucide-react";
 import AddItemModal from "@/components/presupuestos/AddItemModal";
 import type { APUCompleto } from "@/lib/supabase/apus";
@@ -242,8 +240,15 @@ function NuevoPresupuestoContent() {
   });
   const [ivaPct, setIvaPct] = useState(19);
   const [retencionPct, setRetencionPct] = useState(0);
-  const [aiuPct, setAiuPct] = useState(0); // Administración + Imprevistos + Utilidad
-  const [showAIUModal, setShowAIUModal] = useState(false);
+  // AIU — Estados individuales con checkboxes
+  const [admonEnabled, setAdmonEnabled] = useState(false);
+  const [admonPct, setAdmonPct] = useState(0);
+  const [imprevistosEnabled, setImprevistosEnabled] = useState(false);
+  const [imprevistosPct, setImprevistosPct] = useState(0);
+  const [utilidadEnabled, setUtilidadEnabled] = useState(false);
+  const [utilidadPct, setUtilidadPct] = useState(0);
+  const [ivaEnabled, setIvaEnabled] = useState(true); // IVA siempre activo por defecto
+  const [retencionEnabled, setRetencionEnabled] = useState(false);
   const [notasLegales, setNotasLegales] = useState(
     "Precios en pesos colombianos (COP). Válido por 30 días calendario. " +
     "No incluye IVA. Forma de pago: 50% anticipo, 50% contra entrega. " +
@@ -254,7 +259,9 @@ function NuevoPresupuestoContent() {
   const [items, setItems] = useState<BudgetItem[]>([]);
   const [calculatedItems, setCalculatedItems] = useState<BudgetItem[]>([]);
   const [subtotalGeneral, setSubtotalGeneral] = useState(0);
-  const [aiuAmount, setAiuAmount] = useState(0);
+  const [admonAmount, setAdmonAmount] = useState(0);
+  const [imprevistosAmount, setImprevistosAmount] = useState(0);
+  const [utilidadAmount, setUtilidadAmount] = useState(0);
   const [ivaAmount, setIvaAmount] = useState(0);
   const [retencionAmount, setRetencionAmount] = useState(0);
   const [totalFinal, setTotalFinal] = useState(0);
@@ -413,7 +420,8 @@ function NuevoPresupuestoContent() {
   useEffect(() => {
     if (items.length === 0) {
       setCalculatedItems([]);
-      setSubtotalGeneral(0); setAiuAmount(0); setIvaAmount(0);
+      setSubtotalGeneral(0); setAdmonAmount(0); setImprevistosAmount(0);
+      setUtilidadAmount(0); setIvaAmount(0);
       setRetencionAmount(0); setTotalFinal(0);
       return;
     }
@@ -431,19 +439,24 @@ function NuevoPresupuestoContent() {
     });
 
     const sub = itemsCalc.reduce((acc, i) => acc + i.total, 0);
-    const a = Math.round(sub * (aiuPct / 100));
-    const base = sub + a;
-    const iv = Math.round(base * (ivaPct / 100));
-    const rt = Math.round(base * (retencionPct / 100));
+    const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
+    const imp = imprevistosEnabled ? Math.round(sub * (imprevistosPct / 100)) : 0;
+    const uti = utilidadEnabled ? Math.round(sub * (utilidadPct / 100)) : 0;
+    const aiuTotal = adm + imp + uti;
+    const base = sub + aiuTotal;
+    const iv = ivaEnabled ? Math.round(base * (ivaPct / 100)) : 0;
+    const rt = retencionEnabled ? Math.round(base * (retencionPct / 100)) : 0;
     const tf = base + iv - rt;
 
     setCalculatedItems(itemsCalc);
     setSubtotalGeneral(sub);
-    setAiuAmount(a);
+    setAdmonAmount(adm);
+    setImprevistosAmount(imp);
+    setUtilidadAmount(uti);
     setIvaAmount(iv);
     setRetencionAmount(rt);
     setTotalFinal(tf);
-  }, [items, ivaPct, retencionPct, aiuPct]);
+  }, [items, admonEnabled, admonPct, imprevistosEnabled, imprevistosPct, utilidadEnabled, utilidadPct, ivaEnabled, ivaPct, retencionEnabled, retencionPct]);
 
   // Cargar clientes y proyectos para los selects
   useEffect(() => {
@@ -694,6 +707,51 @@ function NuevoPresupuestoContent() {
   // ITEMS AGRUPADOS POR CATEGORÍA
   // =========================================================================
 
+
+  // =========================================================================
+  // COMPONENTE AUXILIAR: LiquidacionRow
+  // =========================================================================
+
+  const LiquidacionRow = ({ label, enabled, onToggle, value, onChange, amount, isRetention, defaultEnabled }: {
+    label: string;
+    enabled: boolean;
+    onToggle: (v: boolean) => void;
+    value: number;
+    onChange: (v: number) => void;
+    amount: number;
+    isRetention?: boolean;
+    defaultEnabled?: boolean;
+  }) => (
+    <div className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(e) => onToggle(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary/30 cursor-pointer"
+      />
+      <label className={`text-xs font-semibold min-w-[100px] ${enabled ? 'text-slate-700' : 'text-slate-400'}`}>
+        {label}
+      </label>
+      <div className="relative flex-1">
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          disabled={!enabled}
+          min={0}
+          max={100}
+          step={0.5}
+          className={`w-full rounded-lg border px-2.5 py-1.5 pr-8 text-xs font-mono font-bold text-right outline-none transition-colors ${
+            enabled ? 'border-slate-200 bg-white text-slate-800 focus:border-primary/50' : 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+          }`}
+        />
+        <span className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold ${enabled ? 'text-slate-400' : 'text-slate-300'}`}>%</span>
+      </div>
+      <span className={`text-xs font-mono font-bold w-24 text-right ${isRetention && enabled ? 'text-red-600' : enabled ? 'text-slate-600' : 'text-slate-300'}`}>
+        {isRetention ? `-${formatCOP(amount)}` : formatCOP(amount)}
+      </span>
+    </div>
+  );
 
   // =========================================================================
   // RENDER
@@ -950,86 +1008,46 @@ function NuevoPresupuestoContent() {
             </table>
           </div>
 
-          {/* Footer fijo: Totales + AIU + Guardar */}
-          <div className="border-t-2 border-slate-200 bg-white px-5 py-3">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 text-xs">
-                <div className="text-center">
-                  <span className="block text-3xs text-slate-400 uppercase">Subtotal</span>
-                  <span className="font-mono font-bold text-slate-800">{formatCOP(subtotalGeneral)}</span>
+          {/* ================================================================ */}
+          {/* PANEL DE LIQUIDACIÓN VERTICAL (AIU + Impuestos) */}
+          {/* ================================================================ */}
+          <div className="ml-auto mt-6 max-w-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              {/* Encabezado */}
+              <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3">
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">Liquidación</h3>
+              </div>
+              {/* Campos */}
+              <div className="px-5 py-4 space-y-3">
+                {/* Subtotal */}
+                <div>
+                  <label className="block text-3xs font-bold uppercase text-slate-400 tracking-wider mb-1">Subtotal</label>
+                  <span className="block text-sm font-mono font-bold text-slate-800">{formatCOP(subtotalGeneral)}</span>
                 </div>
-                {aiuPct > 0 && (
-                  <div className="text-center">
-                    <span className="block text-3xs text-blue-500 uppercase">AIU ({aiuPct}%)</span>
-                    <span className="font-mono font-bold text-blue-700">{formatCOP(aiuAmount)}</span>
-                  </div>
-                )}
-                {ivaPct > 0 && (
-                  <div className="text-center">
-                    <span className="block text-3xs text-slate-400 uppercase">IVA ({ivaPct}%)</span>
-                    <span className="font-mono font-bold text-slate-600">{formatCOP(ivaAmount)}</span>
-                  </div>
-                )}
-                {retencionPct > 0 && (
-                  <div className="text-center">
-                    <span className="block text-3xs text-red-500 uppercase">Retefuente</span>
-                    <span className="font-mono font-bold text-red-600">-{formatCOP(retencionAmount)}</span>
-                  </div>
-                )}
-                <div className="text-center pl-3 border-l-2 border-slate-200">
-                  <span className="block text-3xs text-slate-400 uppercase">TOTAL</span>
-                  <span className="font-display font-black text-lg text-primary">{formatCOP(totalFinal)}</span>
+                <hr className="border-slate-100" />
+                {/* Administración */}
+                <LiquidacionRow label="Admón" enabled={admonEnabled} onToggle={setAdmonEnabled} value={admonPct} onChange={setAdmonPct} amount={admonAmount} />
+                {/* Imprevistos */}
+                <LiquidacionRow label="Imprevistos" enabled={imprevistosEnabled} onToggle={setImprevistosEnabled} value={imprevistosPct} onChange={setImprevistosPct} amount={imprevistosAmount} />
+                {/* Utilidad */}
+                <LiquidacionRow label="Utilidad" enabled={utilidadEnabled} onToggle={setUtilidadEnabled} value={utilidadPct} onChange={setUtilidadPct} amount={utilidadAmount} />
+                <hr className="border-slate-100" />
+                {/* IVA */}
+                <LiquidacionRow label="IVA (sobre la utilidad)" enabled={ivaEnabled} onToggle={setIvaEnabled} value={ivaPct} onChange={setIvaPct} amount={ivaAmount} defaultEnabled />
+                {/* Retención */}
+                <LiquidacionRow label="Retención de la fuente" enabled={retencionEnabled} onToggle={setRetencionEnabled} value={retencionPct} onChange={setRetencionPct} amount={retencionAmount} isRetention />
+                <hr className="border-slate-100" />
+                {/* TOTAL */}
+                <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+                  <span className="block text-3xs font-bold uppercase text-slate-400 tracking-wider">TOTAL</span>
+                  <span className="block text-xl font-display font-black text-primary mt-0.5">{formatCOP(totalFinal)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowAIUModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-2xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">
-                  <Percent className="h-3 w-3" /> AIU
+              {/* Botón Guardar */}
+              <div className="border-t border-slate-200 px-5 py-3 bg-slate-50/50">
+                <button onClick={guardarPresupuesto} disabled={guardando} className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shadow-sm">
+                  {guardando ? <><Loader2 className="h-4 w-4 animate-spin" /> {editBudgetId ? 'Actualizando Presupuesto...' : 'Guardando Presupuesto...'}</> : <><Save className="h-4 w-4" /> {editBudgetId ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</>}
                 </button>
-                <button onClick={guardarPresupuesto} disabled={guardando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shadow-sm">
-                  {guardando ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {editBudgetId ? 'Actualizando...' : 'Guardando...'}</> : <><Save className="h-3.5 w-3.5" /> {editBudgetId ? 'Actualizar Presupuesto' : 'Guardar Presupuesto'}</>}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================================================================ */}
-      {/* MODAL AIU */}
-      {/* ================================================================ */}
-      {showAIUModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setShowAIUModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-              <h3 className="text-base font-black text-white flex items-center gap-2"><Settings className="h-4 w-4" /> Configuración de AIU</h3>
-              <p className="text-xs text-blue-200 mt-0.5">Administración · Imprevistos · Utilidad</p>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">AIU (Admón + Imprevistos + Utilidad)</label>
-                <div className="relative">
-                  <input type="number" value={aiuPct} onChange={e => setAiuPct(Number(e.target.value))} min={0} max={100} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
-                </div>
-                <p className="text-3xs text-slate-400 mt-1">Porcentaje aplicado al costo directo (materiales + mano de obra + equipo + transporte)</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">IVA</label>
-                <div className="relative">
-                  <input type="number" value={ivaPct} onChange={e => setIvaPct(Number(e.target.value))} min={0} max={30} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">Retención en la fuente</label>
-                <div className="relative">
-                  <input type="number" value={retencionPct} onChange={e => setRetencionPct(Number(e.target.value))} min={0} max={20} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowAIUModal(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all cursor-pointer">Cancelar</button>
-                <button onClick={() => setShowAIUModal(false)} className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">Aplicar</button>
               </div>
             </div>
           </div>
