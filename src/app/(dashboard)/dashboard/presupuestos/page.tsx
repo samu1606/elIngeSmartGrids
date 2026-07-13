@@ -546,6 +546,12 @@ export default function PresupuestosPage() {
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => {
+                          // DEBUG: confirmar que el ID existe antes de navegar
+                          if (!budget.id) {
+                            console.error('⛔ budget.id es falsy:', budget);
+                            return;
+                          }
+                          console.log('🔗 Navegando a editar presupuesto:', budget.id);
                           sessionStorage.setItem('editingBudgetId', budget.id);
                           router.push(`/dashboard/presupuestos/nuevo?edit=${budget.id}`);
                         }}
