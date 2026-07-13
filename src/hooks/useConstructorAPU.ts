@@ -89,6 +89,16 @@ function reducer(
     case 'SET_SAVING':
       return { ...state, isSaving: action.value };
 
+    case 'CARGAR_APU':
+      return {
+        ...state,
+        isDirty: false,
+        apu: { ...action.apu },
+        insumos: action.insumos,
+        tabActivo: action.insumos.length > 0 ? action.insumos[0].insumo.tipo : 'material',
+        busqueda: '',
+      };
+
     case 'RESET':
       return {
         apu: { codigo: '', descripcion: '', unidad: 'und' },

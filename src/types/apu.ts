@@ -89,4 +89,5 @@ export type ConstructorAPUAction =
   | { type: 'ELIMINAR_INSUMO'; localId: string }
   | { type: 'ACTUALIZAR_CANTIDAD'; localId: string; cantidad: number }
   | { type: 'SET_SAVING'; value: boolean }
+  | { type: 'CARGAR_APU'; apu: { codigo: string; descripcion: string; unidad: string }; insumos: InsumoEnAPU[] }
   | { type: 'RESET' };

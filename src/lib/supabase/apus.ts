@@ -79,3 +79,42 @@ export async function obtenerAPUCompleto(apuId: number): Promise<APUCompleto | n
     costoTotal,
   };
 }
+
+/**
+ * Actualiza un APU existente (header + detalles via delete+insert)
+ */
+export async function actualizarAPU(
+  apuId: number,
+  datos: { codigo: string; descripcion: string; unidad: string },
+  detalles: { insumo_id: number; cantidad_rendimiento: number }[]
+): Promise<{ error: string | null }> {
+  // 1. Actualizar header
+  const { error: updError } = await supabase
+    .from('apus')
+    .update({ codigo: datos.codigo, descripcion: datos.descripcion, unidad: datos.unidad })
+    .eq('id', apuId);
+
+  if (updError) return { error: updError.message };
+
+  // 2. Borrar detalles viejos e insertar nuevos
+  await supabase.from('detalle_apu').delete().eq('apu_id', apuId);
+
+  if (detalles.length > 0) {
+    const { error: insError } = await supabase
+      .from('detalle_apu')
+      .insert(detalles.map(d => ({ apu_id: apuId, insumo_id: d.insumo_id, cantidad_rendimiento: d.cantidad_rendimiento })));
+
+    if (insError) return { error: insError.message };
+  }
+
+  return { error: null };
+}
+
+/**
+ * Elimina un APU y sus detalles
+ */
+export async function eliminarAPU(apuId: number): Promise<{ error: string | null }> {
+  await supabase.from('detalle_apu').delete().eq('apu_id', apuId);
+  const { error } = await supabase.from('apus').delete().eq('id', apuId);
+  return { error: error?.message || null };
+}

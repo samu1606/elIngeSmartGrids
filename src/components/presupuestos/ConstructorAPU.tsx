@@ -7,6 +7,8 @@ import {
   Loader2, CheckCircle, AlertCircle, X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { obtenerAPUCompleto, actualizarAPU, eliminarAPU, obtenerAPUs } from '@/lib/supabase/apus';
+import type { APU } from '@/lib/supabase/apus';
 import { useConstructorAPUReducer } from '@/hooks/useConstructorAPU';
 import type { Insumo, TipoInsumo } from '@/types/apu';
 import { useRouter } from 'next/navigation';
@@ -60,10 +62,22 @@ export default function ConstructorAPUPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Estado de edición
+  const [editingAPUId, setEditingAPUId] = useState<number | null>(null);
+  const [misAPUs, setMisAPUs] = useState<APU[]>([]);
+  const [loadingAPUs, setLoadingAPUs] = useState(false);
+
   // Quick-create insumo
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [newInsumo, setNewInsumo] = useState({ descripcion: '', unidad: 'und', precio_unitario: 0 });
   const [savingInsumo, setSavingInsumo] = useState(false);
+
+  const recargarAPUs = async () => {
+    setLoadingAPUs(true);
+    const apus = await obtenerAPUs();
+    setMisAPUs(apus);
+    setLoadingAPUs(false);
+  };
 
   const handleQuickCreate = async () => {
     if (!newInsumo.descripcion.trim() || newInsumo.precio_unitario <= 0) return;
@@ -92,6 +106,9 @@ export default function ConstructorAPUPage() {
     setInsumosDisponibles(data || []);
     setLoadingInsumos(false);
   };
+
+  // Cargar biblioteca de APUs al montar
+  useEffect(() => { recargarAPUs(); }, []);
 
   // Cargar insumos cuando cambia la pestaña
   useEffect(() => {
@@ -186,6 +203,58 @@ export default function ConstructorAPUPage() {
     }
   }, [state.apu, state.insumos, costoTotal, dispatch]);
 
+  // Editar APU existente
+  const handleEditarAPU = async (apuId: number) => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    const completo = await obtenerAPUCompleto(apuId);
+    if (!completo) {
+      setErrorMsg('No se pudo cargar el APU para editar.');
+      return;
+    }
+    // Cargar en el reducer
+    const insumosCargados = completo.detalles.map((d) => ({
+      localId: crypto.randomUUID(),
+      insumo: d.insumos,
+      cantidad: d.cantidad_rendimiento || 1,
+      valorTotal: (d.cantidad_rendimiento || 0) * (d.insumos?.precio_unitario || 0),
+    }));
+    dispatch({
+      type: 'CARGAR_APU',
+      apu: {
+        codigo: completo.apu.codigo,
+        descripcion: completo.apu.descripcion,
+        unidad: completo.apu.unidad,
+      },
+      insumos: insumosCargados,
+    });
+    setEditingAPUId(apuId);
+  };
+
+  // Eliminar APU
+  const handleEliminarAPU = async (apuId: number, nombre: string) => {
+    if (!confirm(`¿Eliminar APU "${nombre}" y todos sus insumos?`)) return;
+    const { error } = await eliminarAPU(apuId);
+    if (error) {
+      setErrorMsg('Error al eliminar APU: ' + error);
+    } else {
+      setSuccessMsg('APU eliminado correctamente.');
+      recargarAPUs();
+      if (editingAPUId === apuId) {
+        setEditingAPUId(null);
+        dispatch({ type: 'RESET' });
+      }
+    }
+  };
+
+  // Cancelar edición
+  const handleCancelarEdicion = () => {
+    setEditingAPUId(null);
+    dispatch({ type: 'RESET' });
+    setSuccessMsg(null);
+    setErrorMsg(null);
+  };
+
   const tabActual = TABS.find((t) => t.key === state.tabActivo)!;
 
   return (
@@ -202,9 +271,14 @@ export default function ConstructorAPUPage() {
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight font-display flex items-center gap-2">
             <FlaskConical className="h-7 w-7 text-primary" />
             Constructor de APU
+            {editingAPUId !== null && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700">
+                Editando: {state.apu.codigo || 'APU'}
+              </span>
+            )}
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Crea Análisis de Precios Unitarios combinando equipos, materiales, transportes y mano de obra
+            {editingAPUId !== null ? 'Modifica los datos y haz clic en Actualizar APU' : 'Crea Análisis de Precios Unitarios combinando equipos, materiales, transportes y mano de obra'}
           </p>
         </div>
       </div>
@@ -222,6 +296,58 @@ export default function ConstructorAPUPage() {
           <span>{successMsg}</span>
         </div>
       )}
+
+      {/* Biblioteca de APUs */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-primary" />
+            Biblioteca de APU
+            {loadingAPUs && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+          </h3>
+          <span className="text-xs text-slate-400">{misAPUs.length} APUs</span>
+        </div>
+        {misAPUs.length === 0 && !loadingAPUs ? (
+          <p className="px-5 py-8 text-center text-sm text-slate-400">
+            No hay APUs todavía. Crea el primero usando el formulario de abajo.
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+            {misAPUs.map((apu) => (
+              <div
+                key={apu.id}
+                className={`flex items-center justify-between px-5 py-2.5 hover:bg-slate-50 transition-colors ${
+                  editingAPUId === apu.id ? 'bg-amber-50/50 border-l-2 border-amber-400' : ''
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-primary bg-primary/5 px-2 py-0.5 rounded">{apu.codigo}</span>
+                    <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{apu.unidad}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 font-medium truncate mt-0.5">{apu.descripcion}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-3">
+                  <button
+                    onClick={() => handleEditarAPU(apu.id)}
+                    className="text-slate-350 hover:text-primary hover:bg-primary/5 p-1.5 rounded-lg transition-colors cursor-pointer"
+                    title="Editar APU"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleEliminarAPU(apu.id, apu.codigo)}
+                    className="text-slate-350 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                    title="Eliminar APU"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Encabezado: datos del APU */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -552,6 +678,15 @@ export default function ConstructorAPUPage() {
                 {state.insumos.length} insumos · {formatCOP(costoTotal)}/{state.apu.unidad || 'und'}
               </span>
             </div>
+            {editingAPUId !== null && (
+              <button
+                onClick={handleCancelarEdicion}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                Cancelar
+              </button>
+            )}
             <button
               onClick={handleGuardarAPU}
               disabled={state.isSaving || !state.apu.codigo.trim()}
@@ -561,6 +696,11 @@ export default function ConstructorAPUPage() {
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Guardando...
+                </>
+              ) : editingAPUId !== null ? (
+                <>
+                  <Save className="w-4 h-4" />
+                  Actualizar APU
                 </>
               ) : (
                 <>
