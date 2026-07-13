@@ -6,7 +6,6 @@ import {
   Zap, 
   LayoutDashboard, 
   Calculator, 
-  FolderOpen, 
   Users, 
   FileText, 
   Calendar, 
@@ -45,8 +44,7 @@ export default function Sidebar({
   const menuItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Calculadora", href: "/dashboard/calculadora", icon: Calculator },
-    { label: "Proyectos", href: "/dashboard/proyectos", icon: FolderOpen },
-    { label: "Clientes", href: "/dashboard/clientes", icon: Users },
+    { label: "Clientes y Proyectos", href: "/dashboard/clientes", icon: Users },
     { label: "Presupuestos", href: "/dashboard/presupuestos", icon: FileText },
     { label: "Agenda", href: "/dashboard/agenda", icon: Calendar },
     { label: "Reportes", href: "/dashboard/reportes", icon: BarChart3 },
