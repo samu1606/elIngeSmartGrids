@@ -913,8 +913,6 @@ export default function NuevoPresupuestoPage() {
           </div>
         </div>
       )}
-    </div>
-
       {/* Modal de Añadir Ítem */}
       <AddItemModal
         open={showAddModal}
