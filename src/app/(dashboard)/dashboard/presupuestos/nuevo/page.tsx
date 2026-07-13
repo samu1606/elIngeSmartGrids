@@ -221,31 +221,45 @@ function NuevoPresupuestoContent() {
 
   // CAPTURA DEL ID — directo desde el navegador, sin hooks, sin Suspense, sin Promises
   // `window.location.search` es la fuente de verdad absoluta en cliente.
-  // Se lee en cada render (no es caro) y se persiste en un ref para consistencia.
   const getEditIdFromUrl = () => {
     if (typeof window === 'undefined') return null;
     return new URLSearchParams(window.location.search).get('edit');
   };
   const browserEditId = getEditIdFromUrl();
 
+  // LOG FORENSE: dump completo de la URL al montar el componente
+  // Esto nos dirá EXACTAMENTE qué hay (y qué no hay) en la barra de direcciones
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rawSearch = window.location.search;
+    const rawHref = window.location.href;
+    const rawPathname = window.location.pathname;
+    const allParams: Record<string, string> = {};
+    new URLSearchParams(rawSearch).forEach((v, k) => { allParams[k] = v; });
+    console.log("🧬 URL FORENSE — montaje del componente:", {
+      href: rawHref,
+      pathname: rawPathname,
+      search: rawSearch || '(vacío)',
+      allParams,
+      editParam: new URLSearchParams(rawSearch).get('edit'),
+      timestamp: new Date().toISOString(),
+    });
+  }, []); // solo una vez al montar
+
   // REFS — inmunes a stale state
-  const editIdRef = useRef<string | null>(browserEditId); // ← captura inicial desde navegador (instantáneo)
+  const editIdRef = useRef<string | null>(browserEditId);
   const totalRef = useRef(0);
   const savingRef = useRef(false);
 
   // Sincronizar: si useSearchParams eventualmente nos da el valor, actualizar ref
-  // También actualizar si el navegador tiene un valor que el hook no detectó
   useEffect(() => {
     const fromWindow = getEditIdFromUrl();
     const final = editBudgetId || fromWindow;
     if (final && final !== editIdRef.current) {
       editIdRef.current = final;
-      console.log("🔗 editIdRef actualizado:", { fromWindow, fromHook: editBudgetId, ref: editIdRef.current, href: window.location.href });
+      console.log("🔗 editIdRef actualizado:", { fromWindow, fromHook: editBudgetId, ref: editIdRef.current });
     }
-    if (!final) {
-      console.log("🔗 Sin ID de edición — CREATE. href:", window.location.href);
-    }
-  }, [editBudgetId]); // // re-ejecutar si el hook cambia (Suspense puede resolver tarde)
+  }, [editBudgetId]);
 
   // Estados del formulario
   const [number, setNumber] = useState("");
@@ -748,7 +762,15 @@ function NuevoPresupuestoContent() {
     // Lectura fresca de 3 fuentes al momento del click
     const capturedEditId = editIdRef.current || getEditIdFromUrl() || editBudgetId;
 
+    // DUMP FORENSE al momento del click — TODOS los query params visibles
+    const rawUrl = typeof window !== 'undefined' ? window.location.href : 'SSR';
+    const rawSearch = typeof window !== 'undefined' ? window.location.search : 'SSR';
+    const allUrlParams: Record<string, string> = {};
+    if (typeof window !== 'undefined') {
+      new URLSearchParams(window.location.search).forEach((v, k) => { allUrlParams[k] = v; });
+    }
     console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT", "| ref:", editIdRef.current, "| browser:", getEditIdFromUrl(), "| hook:", editBudgetId, "| items:", items.length);
+    console.log("🧬 URL al guardar:", { rawUrl, rawSearch, allUrlParams, capturedEditId });
 
     try {
       if (capturedEditId) {
