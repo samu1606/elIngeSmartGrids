@@ -512,7 +512,7 @@ export default function PresupuestosPage() {
                   <th className="px-6 py-4">Proyecto</th>
                   <th className="px-6 py-4">Fecha Emisión</th>
                   <th className="px-6 py-4">Válido Hasta</th>
-                  <th className="px-6 py-4">Monto Total</th>
+                  <th className="px-6 py-4">VALOR TOTAL</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>

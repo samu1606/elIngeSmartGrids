@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getApiUrl } from "@/lib/api";
@@ -265,6 +265,7 @@ function NuevoPresupuestoContent() {
   const [ivaAmount, setIvaAmount] = useState(0);
   const [retencionAmount, setRetencionAmount] = useState(0);
   const [totalFinal, setTotalFinal] = useState(0);
+  const totalRef = useRef(0); // ref inmutable para guardar — nunca stale
 
   // Estados de UI
   const [catalogo, setCatalogo] = useState<Record<string, CatalogoItem>>({});
@@ -448,6 +449,7 @@ function NuevoPresupuestoContent() {
     setIvaAmount(calc.iv);
     setRetencionAmount(calc.rt);
     setTotalFinal(calc.total);
+    totalRef.current = calc.total; // ref inmutable para guardar
   }, [items, admonEnabled, admonPct, imprevistosEnabled, imprevistosPct, utilidadEnabled, utilidadPct, ivaEnabled, ivaPct, retencionEnabled, retencionPct]);
 
   // Cargar clientes y proyectos para los selects
@@ -572,24 +574,37 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
-    // Recalcular total final con valores actuales (evita stale state del useEffect)
-    const calc = calculateTotal();
-    const totalConImpuestos = calc.total;
+    // =========================================================================
+    // CÁLCULO EXPLÍCITO DEL TOTAL (inline — nunca stale, nunca $0)
+    // =========================================================================
+    const subCalc = items.reduce((acc, item) => {
+      const qty = item.quantity;
+      const price = item.unit_price;
+      const mts = item.metros_por_salida || 7;
+      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
+      const discount = subItem * (item.discount_pct / 100);
+      return acc + subItem - discount;
+    }, 0);
+    const admCalc = admonEnabled ? Math.round(subCalc * (admonPct / 100)) : 0;
+    const impCalc = imprevistosEnabled ? Math.round(subCalc * (imprevistosPct / 100)) : 0;
+    const utiCalc = utilidadEnabled ? Math.round(subCalc * (utilidadPct / 100)) : 0;
+    const baseCalc = subCalc + admCalc + impCalc + utiCalc;
+    const ivCalc = ivaEnabled ? Math.round(baseCalc * (ivaPct / 100)) : 0;
+    const rtCalc = retencionEnabled ? Math.round(baseCalc * (retencionPct / 100)) : 0;
+    const totalConImpuestos = Math.round(baseCalc + ivCalc - rtCalc);
 
-    console.log("🔍 DEBUG guardarPresupuesto:", {
-      subtotal: calc.sub,
-      admon: { enabled: admonEnabled, pct: admonPct, amount: calc.adm },
-      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: calc.imp },
-      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: calc.uti },
-      iva: { enabled: ivaEnabled, pct: ivaPct, amount: calc.iv },
-      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: calc.rt },
-      baseAIU: calc.base,
-      totalFinal: totalConImpuestos,
+    console.log("🔍 DEBUG guardarPresupuesto (inline):", {
+      subtotal: subCalc,
+      admon: { enabled: admonEnabled, pct: admonPct, amount: admCalc },
+      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: impCalc },
+      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: utiCalc },
+      iva: { enabled: ivaEnabled, pct: ivaPct, amount: ivCalc },
+      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: rtCalc },
+      baseAIU: baseCalc,
+      totalConImpuestos,
+      totalRef_current: totalRef.current,
+      totalFinal_state: totalFinal,
       itemsCount: items.length,
-      editBudgetId,
-      number,
-      clientName,
-      projectName,
     });
 
     try {
