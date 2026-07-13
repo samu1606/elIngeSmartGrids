@@ -16,6 +16,8 @@ import {
   FileText,
   Wrench,
   PenTool,
+  Percent,
+  Settings,
 } from "lucide-react";
 import AddItemModal from "@/components/presupuestos/AddItemModal";
 import type { APUCompleto } from "@/lib/supabase/apus";
@@ -63,6 +65,8 @@ interface CalculatedBudget {
   valid_until: string;
   items: BudgetItem[];
   subtotal_general: number;
+  aiu_pct: number;
+  aiu_amount: number;
   iva_pct: number;
   iva_amount: number;
   retencion_pct: number;
@@ -239,6 +243,8 @@ function NuevoPresupuestoContent() {
   });
   const [ivaPct, setIvaPct] = useState(19);
   const [retencionPct, setRetencionPct] = useState(0);
+  const [aiuPct, setAiuPct] = useState(0); // Administración + Imprevistos + Utilidad
+  const [showAIUModal, setShowAIUModal] = useState(false);
   const [notasLegales, setNotasLegales] = useState(
     "Precios en pesos colombianos (COP). Válido por 30 días calendario. " +
     "No incluye IVA. Forma de pago: 50% anticipo, 50% contra entrega. " +
@@ -619,9 +625,11 @@ function NuevoPresupuestoContent() {
     });
 
     const subtotalGeneral = itemsCalculados.reduce((acc, i) => acc + i.total, 0);
-    const ivaAmount = subtotalGeneral * (ivaPct / 100);
-    const retencionAmount = subtotalGeneral * (retencionPct / 100);
-    const totalFinal = subtotalGeneral + ivaAmount - retencionAmount;
+    const aiuAmount = Math.round(subtotalGeneral * (aiuPct / 100));
+    const baseConAIU = subtotalGeneral + aiuAmount;
+    const ivaAmount = Math.round(baseConAIU * (ivaPct / 100));
+    const retencionAmount = Math.round(baseConAIU * (retencionPct / 100));
+    const totalFinal = baseConAIU + ivaAmount - retencionAmount;
 
     setCalculatedBudget({
       number,
@@ -636,11 +644,13 @@ function NuevoPresupuestoContent() {
       valid_until: validUntil,
       items: itemsCalculados,
       subtotal_general: Math.round(subtotalGeneral * 100) / 100,
+      aiu_pct: aiuPct,
+      aiu_amount: aiuAmount,
       iva_pct: ivaPct,
-      iva_amount: Math.round(ivaAmount * 100) / 100,
+      iva_amount: ivaAmount,
       retencion_pct: retencionPct,
-      retencion_amount: Math.round(retencionAmount * 100) / 100,
-      total_final: Math.round(totalFinal * 100) / 100,
+      retencion_amount: retencionAmount,
+      total_final: totalFinal,
       notas_legales: notasLegales,
     });
   };
@@ -656,9 +666,11 @@ function NuevoPresupuestoContent() {
 
     // Recalcular total con impuestos (no confiar en backend)
     const subtotalBase = calculatedBudget.subtotal_general;
-    const ivaCalculado = Math.round(subtotalBase * (calculatedBudget.iva_pct / 100));
-    const retencionCalculada = Math.round(subtotalBase * (calculatedBudget.retencion_pct / 100));
-    const totalConImpuestos = subtotalBase + ivaCalculado - retencionCalculada;
+    const aiuCalculado = Math.round(subtotalBase * (calculatedBudget.aiu_pct / 100));
+    const baseAIU = subtotalBase + aiuCalculado;
+    const ivaCalculado = Math.round(baseAIU * (calculatedBudget.iva_pct / 100));
+    const retencionCalculada = Math.round(baseAIU * (calculatedBudget.retencion_pct / 100));
+    const totalConImpuestos = baseAIU + ivaCalculado - retencionCalculada;
 
     try {
       if (editBudgetId) {
@@ -1035,18 +1047,62 @@ function NuevoPresupuestoContent() {
             </table>
           </div>
 
-          {/* Barra de total + calcular */}
+          {/* Barra AIU + Calcular */}
           <div className="border-t-2 border-slate-200 bg-gradient-to-r from-primary/5 to-white px-5 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <button onClick={() => setShowAIUModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-2.5 text-sm font-black text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer shadow-lg shadow-blue-600/20">
+                  <Percent className="h-4 w-4" /> AIU
+                </button>
                 <button onClick={calcularPresupuesto} disabled={calculando} className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-dark active:scale-[0.98] disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-primary/20">
                   {calculando ? <><Loader2 className="h-4 w-4 animate-spin" /> Calculando...</> : <><Calculator className="h-4 w-4" /> Calcular Presupuesto</>}
                 </button>
-                <span className="text-2xs text-slate-400">IVA/Retención → <a href="/dashboard/ajustes" className="text-primary underline font-semibold">Ajustes</a></span>
               </div>
               <div className="text-right">
                 <span className="text-2xs font-semibold text-slate-400 uppercase block">Subtotal Estimado</span>
                 <span className="text-xl font-black text-slate-900 font-display">{formatCOP(items.reduce((sum, i) => sum + (i.unit_price * i.quantity), 0))}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================ */}
+      {/* MODAL AIU */}
+      {/* ================================================================ */}
+      {showAIUModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" onClick={() => setShowAIUModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+              <h3 className="text-base font-black text-white flex items-center gap-2"><Settings className="h-4 w-4" /> Configuración de AIU</h3>
+              <p className="text-xs text-blue-200 mt-0.5">Administración · Imprevistos · Utilidad</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">AIU (Admón + Imprevistos + Utilidad)</label>
+                <div className="relative">
+                  <input type="number" value={aiuPct} onChange={e => setAiuPct(Number(e.target.value))} min={0} max={100} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
+                </div>
+                <p className="text-3xs text-slate-400 mt-1">Porcentaje aplicado al costo directo (materiales + mano de obra + equipo + transporte)</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">IVA</label>
+                <div className="relative">
+                  <input type="number" value={ivaPct} onChange={e => setIvaPct(Number(e.target.value))} min={0} max={30} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">Retención en la fuente</label>
+                <div className="relative">
+                  <input type="number" value={retencionPct} onChange={e => setRetencionPct(Number(e.target.value))} min={0} max={20} step={0.5} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowAIUModal(false)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-all cursor-pointer">Cancelar</button>
+                <button onClick={() => { setShowAIUModal(false); calcularPresupuesto(); }} className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 active:scale-[0.98] transition-all cursor-pointer">Aplicar y Calcular</button>
               </div>
             </div>
           </div>
@@ -1099,6 +1155,7 @@ function NuevoPresupuestoContent() {
           <div className="border-t border-slate-200 px-6 py-4 bg-slate-50/50">
             <div className="space-y-1 max-w-xs ml-auto">
               <div className="flex justify-between text-xs"><span className="text-slate-400">Subtotal</span><span className="font-mono font-semibold text-slate-800">{formatCOP(calculatedBudget.subtotal_general)}</span></div>
+              {calculatedBudget.aiu_pct > 0 && <div className="flex justify-between text-xs"><span className="text-slate-400">AIU ({calculatedBudget.aiu_pct}%)</span><span className="font-mono text-blue-600">{formatCOP(calculatedBudget.aiu_amount)}</span></div>}
               {calculatedBudget.iva_pct > 0 && <div className="flex justify-between text-xs"><span className="text-slate-400">IVA ({calculatedBudget.iva_pct}%)</span><span className="font-mono text-slate-600">{formatCOP(calculatedBudget.iva_amount)}</span></div>}
               {calculatedBudget.retencion_pct > 0 && <div className="flex justify-between text-xs"><span className="text-red-500">Retefuente ({calculatedBudget.retencion_pct}%)</span><span className="font-mono text-red-600">-{formatCOP(calculatedBudget.retencion_amount)}</span></div>}
               <div className="flex justify-between text-base font-black pt-2 border-t border-slate-200"><span className="text-slate-900">TOTAL</span><span className="font-display text-primary">{formatCOP(calculatedBudget.total_final)}</span></div>
