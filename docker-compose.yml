@@ -32,8 +32,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        BUILD_DATE: ${BUILD_DATE:-unknown}
     # Forzar modo producción (anula cualquier CMD cacheado)
     # Build se ejecuta al iniciar el contenedor
     command: ["sh", "-c", "npm run build && npm start"]

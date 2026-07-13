@@ -219,59 +219,19 @@ function NuevoPresupuestoContent() {
   const supabase = createClient();
   const apiUrl = getApiUrl();
 
-  // CAPTURA DEL ID — 5 fuentes en cascada:
-  //   1. sessionStorage (puente infalible entre páginas, sin URL)
-  //   2. URL query param (?edit=) — de router.push o URL directa
-  //   3. URL path segment (/nuevo/PRE-XXX) — por si es ruta dinámica
-  //   4. useSearchParams() hook (React, puede fallar con Suspense)
-  //   5. editIdRef (persiste entre renders)
+  // Captura del ID de edición desde URL o hook de Next.js
   const getEditIdFromUrl = () => {
     if (typeof window === 'undefined') return null;
     return new URLSearchParams(window.location.search).get('edit');
   };
-  const getEditIdFromPath = () => {
-    if (typeof window === 'undefined') return null;
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const last = parts[parts.length - 1];
-    // Si el último segmento NO es 'nuevo' y empieza con PRE-, es un ID
-    if (last !== 'nuevo' && /^[A-Z]+-\d+$/i.test(last)) return last;
-    return null;
-  };
-  const getEditIdFromStorage = () => {
-    if (typeof window === 'undefined') return null;
-    return sessionStorage.getItem('editingBudgetId');
-  };
 
-  // Fuente #1: sessionStorage (la más confiable)
-  const storageId = getEditIdFromStorage();
-  const browserEditId = getEditIdFromUrl() || getEditIdFromPath() || storageId;
-
-  // REFS
-  const editIdRef = useRef<string | null>(browserEditId);
-  const totalRef = useRef(0);
+  const editIdRef = useRef<string | null>(getEditIdFromUrl() || null);
   const savingRef = useRef(false);
 
-  // DIAGNÓSTICO COMPLETO al montar
+  // Sincronizar editIdRef con useSearchParams
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    console.log("🧬 URL COMPLETA:", window.location.href);
-    console.log("🧬 PATHNAME:", window.location.pathname);
-    console.log("🧬 SEARCH:", window.location.search || '(vacío)');
-    console.log("🧬 sessionStorage editBudgetId:", sessionStorage.getItem('editingBudgetId'));
-    console.log("🧬 HARDCODED TEST (último segmento):", getEditIdFromPath());
-    console.log("🧬 editIdRef inicial:", editIdRef.current);
-  }, []);
-
-  // Sincronizar con useSearchParams cuando resuelva
-  useEffect(() => {
-    const fromWindow = getEditIdFromUrl();
-    const fromPath = getEditIdFromPath();
-    const fromStorage = getEditIdFromStorage();
-    const final = editBudgetId || fromWindow || fromPath || fromStorage;
-    if (final && final !== editIdRef.current) {
-      editIdRef.current = final;
-      console.log("🔗 editIdRef actualizado:", { hook: editBudgetId, window: fromWindow, path: fromPath, storage: fromStorage, final });
-    }
+    const id = editBudgetId || getEditIdFromUrl();
+    if (id) editIdRef.current = id;
   }, [editBudgetId]);
 
   // Estados del formulario
@@ -504,7 +464,6 @@ function NuevoPresupuestoContent() {
     setIvaAmount(calc.iv);
     setRetencionAmount(calc.rt);
     setTotalFinal(calc.total);
-    totalRef.current = calc.total; // ref inmutable para guardar
   }, [items, admonEnabled, admonPct, imprevistosEnabled, imprevistosPct, utilidadEnabled, utilidadPct, ivaEnabled, ivaPct, retencionEnabled, retencionPct]);
 
   // Cargar clientes y proyectos para los selects
@@ -667,14 +626,14 @@ function NuevoPresupuestoContent() {
       };
     });
 
-  // FUNCIÓN DE CÁLCULO INLINE (garantiza valor real en el instante del click)
+  // --- FUNCIÓN DE CÁLCULO UNIFICADA ---
   const computeTotal = () => {
     const sub = items.reduce((acc, item) => {
-      const qty = item.quantity;
-      const price = item.unit_price;
-      const mts = item.metros_por_salida || 7;
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unit_price) || 0;
+      const mts = Number(item.metros_por_salida) || 7;
       const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
-      const discount = subItem * (item.discount_pct / 100);
+      const discount = subItem * (Number(item.discount_pct) / 100);
       return acc + subItem - discount;
     }, 0);
     const adm = admonEnabled ? Math.round(sub * (admonPct / 100)) : 0;
@@ -686,175 +645,55 @@ function NuevoPresupuestoContent() {
     return { sub, adm, imp, uti, base, iv, rt, total: Math.round(base + iv - rt) };
   };
 
-  // UPDATE — Solo para edición (nunca dispara INSERT)
+  // --- UPDATE ---
   const handleUpdate = async () => {
-    const budgetId = editIdRef.current || getEditIdFromUrl() || getEditIdFromPath() || getEditIdFromStorage() || editBudgetId;
-    if (!budgetId) {
-      console.error("⛔ handleUpdate llamada sin editBudgetId — abortando");
-      setError("Error: no se encontró el ID del presupuesto a editar.");
-      return;
-    }
+    const budgetId = editIdRef.current || editBudgetId || getEditIdFromUrl();
+    if (!budgetId) { setError("No se encontró el ID del presupuesto."); return; }
 
-    // =========================================================================
-    // CÁLCULO EXPLÍCITO E INLINE — sin helpers, sin closures, sin refs
-    // Cada variable se lee DIRECTAMENTE del estado de React al momento de ejecución
-    // =========================================================================
-    const subtotalNum = items.reduce((acc, item) => {
-      const qty = Number(item.quantity) || 0;
-      const price = Number(item.unit_price) || 0;
-      const mts = Number(item.metros_por_salida) || 7;
-      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
-      const discount = subItem * (Number(item.discount_pct) / 100);
-      return acc + subItem - discount;
-    }, 0);
+    const calc = computeTotal();
+    if (!calc.total || calc.total <= 0) { setError("El total es $0. Agregue ítems con precios."); return; }
 
-    const admonNum = admonEnabled ? Math.round(subtotalNum * (Number(admonPct) / 100)) : 0;
-    const imprevistosNum = imprevistosEnabled ? Math.round(subtotalNum * (Number(imprevistosPct) / 100)) : 0;
-    const utilidadNum = utilidadEnabled ? Math.round(subtotalNum * (Number(utilidadPct) / 100)) : 0;
-    const baseAIU = subtotalNum + admonNum + imprevistosNum + utilidadNum;
-    const ivaNum = ivaEnabled ? Math.round(baseAIU * (Number(ivaPct) / 100)) : 0;
-    const retencionNum = retencionEnabled ? Math.round(baseAIU * (Number(retencionPct) / 100)) : 0;
-    const valorTotalFinal = Math.round(baseAIU + ivaNum - retencionNum);
-
-    console.log("🔍 DEBUG handleUpdate INLINE:", {
-      subtotal: subtotalNum,
-      admon: { enabled: admonEnabled, pct: admonPct, amount: admonNum },
-      imprevistos: { enabled: imprevistosEnabled, pct: imprevistosPct, amount: imprevistosNum },
-      utilidad: { enabled: utilidadEnabled, pct: utilidadPct, amount: utilidadNum },
-      baseAIU,
-      iva: { enabled: ivaEnabled, pct: ivaPct, amount: ivaNum },
-      retencion: { enabled: retencionEnabled, pct: retencionPct, amount: retencionNum },
-      valorTotalFinal,
-      itemsCount: items.length,
-    });
-
-    // VALIDACIÓN RADICAL — alert() visible, imposible de ignorar
-    if (!valorTotalFinal || valorTotalFinal <= 0) {
-      const msg = "⛔ Error: El total calculado es $0. Revise los ítems y los precios antes de guardar.";
-      console.error(msg, { itemsCount: items.length, items: items.map(i => ({ qty: i.quantity, price: i.unit_price })) });
-      alert(msg);
-      return;
-    }
-
-    // =========================================================================
-    // PAYLOAD CONSTRUIDO A MANO — sin spreads, sin helpers, sin payloadComun()
-    // Cada campo se asigna explícitamente para evitar cualquier override accidental
-    // =========================================================================
-    console.log("🚀 PAYLOAD Supabase (UPDATE):", {
-      id: budgetId,
-      total: valorTotalFinal,
-      number,
-      client_name: clientName,
-      project_name: projectName,
-    });
-
-    const { error: budgetError, data: updatedData } = await supabase
+    const { error: budgetError } = await supabase
       .from("budgets")
-      .update({
-        number: number,
-        client_name: clientName,
-        project_name: projectName,
-        issue_date: issueDate,
-        valid_until: validUntil,
-        total: valorTotalFinal,
-      })
-      .eq("id", budgetId)
-      .select();
-
-    console.log("📥 Respuesta Supabase (UPDATE):", { error: budgetError, data: updatedData });
+      .update({ number, client_name: clientName, project_name: projectName, issue_date: issueDate, valid_until: validUntil, total: calc.total })
+      .eq("id", budgetId);
 
     if (budgetError) throw budgetError;
 
-    // Reemplazar items
     await supabase.from("budget_items").delete().eq("budget_id", budgetId);
     const itemsPayload = buildItemsPayload(budgetId);
-    if (itemsPayload.length > 0) {
-      await supabase.from("budget_items").insert(itemsPayload);
-    }
+    if (itemsPayload.length > 0) await supabase.from("budget_items").insert(itemsPayload);
 
-    setSuccess("¡Presupuesto actualizado exitosamente!");
-    sessionStorage.removeItem('editingBudgetId');
-
+    setSuccess("¡Presupuesto actualizado!");
     window.location.replace('/dashboard/presupuestos');
-    return;
   };
 
-  // INSERT — Solo para crear nuevo (nunca se ejecuta en edición)
+  // --- INSERT ---
   const handleCreate = async () => {
-    // GUARD ABSOLUTO: si no hay items o el total es $0, no insertar NADA
-    if (items.length === 0) {
-      console.error("⛔ ABORTING handleCreate: no hay items");
-      return;
-    }
+    if (items.length === 0) { setError("Agregue al menos un ítem."); return; }
 
-    const hasEditId = !!(editIdRef.current || getEditIdFromUrl() || getEditIdFromPath() || getEditIdFromStorage() || editBudgetId);
-    if (hasEditId) {
-      console.error("⛔ handleCreate llamada con editIdRef activo — ABORTANDO");
-      return;
-    }
+    if (editIdRef.current || editBudgetId || getEditIdFromUrl()) { setError("Error: modo creación inválido."); return; }
 
-    // CÁLCULO EXPLÍCITO E INLINE (mismo que handleUpdate)
-    const subtotalNum = items.reduce((acc, item) => {
-      const qty = Number(item.quantity) || 0;
-      const price = Number(item.unit_price) || 0;
-      const mts = Number(item.metros_por_salida) || 7;
-      const subItem = item.pricing_mode === "por_ml" ? qty * mts * price : qty * price;
-      const discount = subItem * (Number(item.discount_pct) / 100);
-      return acc + subItem - discount;
-    }, 0);
-    const admonNum = admonEnabled ? Math.round(subtotalNum * (Number(admonPct) / 100)) : 0;
-    const imprevistosNum = imprevistosEnabled ? Math.round(subtotalNum * (Number(imprevistosPct) / 100)) : 0;
-    const utilidadNum = utilidadEnabled ? Math.round(subtotalNum * (Number(utilidadPct) / 100)) : 0;
-    const baseAIU = subtotalNum + admonNum + imprevistosNum + utilidadNum;
-    const ivaNum = ivaEnabled ? Math.round(baseAIU * (Number(ivaPct) / 100)) : 0;
-    const retencionNum = retencionEnabled ? Math.round(baseAIU * (Number(retencionPct) / 100)) : 0;
-    const valorTotalFinal = Math.round(baseAIU + ivaNum - retencionNum);
-
-    console.log("🔍 DEBUG handleCreate INLINE:", { subtotal: subtotalNum, valorTotalFinal, itemsCount: items.length });
-
-    if (!valorTotalFinal || valorTotalFinal <= 0) {
-      const msg = "⛔ Error: El total calculado es $0. Agregue ítems con precios antes de guardar.";
-      console.error(msg, { itemsCount: items.length, items: items.map(i => ({ qty: i.quantity, price: i.unit_price })) });
-      alert(msg);
-      return;
-    }
-
-    console.log("🚀 PAYLOAD Supabase (INSERT):", { total: valorTotalFinal, number, client_name: clientName });
+    const calc = computeTotal();
+    if (!calc.total || calc.total <= 0) { setError("El total es $0. Agregue ítems con precios."); return; }
 
     const { data: budgetData, error: budgetError } = await supabase
       .from("budgets")
-      .insert({
-        number: number,
-        client_name: clientName,
-        project_name: projectName,
-        issue_date: issueDate,
-        valid_until: validUntil,
-        total: valorTotalFinal,
-        status: "pendiente",
-      })
-      .select()
-      .single();
-
-    console.log("📥 Respuesta Supabase (INSERT):", { error: budgetError, data: budgetData });
+      .insert({ number, client_name: clientName, project_name: projectName, issue_date: issueDate, valid_until: validUntil, total: calc.total, status: "pendiente" })
+      .select().single();
 
     if (budgetError) throw budgetError;
     if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
 
     const itemsPayload = buildItemsPayload(budgetData.id);
-    if (itemsPayload.length > 0) {
-      await supabase.from("budget_items").insert(itemsPayload);
-    }
+    if (itemsPayload.length > 0) await supabase.from("budget_items").insert(itemsPayload);
 
     setSuccess("¡Presupuesto guardado exitosamente!");
   };
 
-  // PUNTO DE ENTRADA ÚNICO — despacha a handleUpdate o handleCreate según editBudgetId
+  // --- PUNTO DE ENTRADA ---
   const guardarPresupuesto = async () => {
-    // 🔒 BLOQUEO ANTI DOBLE-CLICK: ref mutable, inmediato (no depende de React state)
-    if (savingRef.current) {
-      console.warn("⛔ guardarPresupuesto BLOQUEADO: ya hay un guardado en progreso");
-      return;
-    }
+    if (savingRef.current) return;
     savingRef.current = true;
 
     if (items.length === 0) { setError("Agregue al menos un ítem."); savingRef.current = false; return; }
@@ -863,43 +702,21 @@ function NuevoPresupuestoContent() {
     setError(null);
     setGuardando(true);
 
-    // CAPTURA AGRESIVA al momento del click — 5 fuentes
-    const capturedEditId = editIdRef.current
-      || getEditIdFromUrl()
-      || getEditIdFromPath()
-      || getEditIdFromStorage()
-      || editBudgetId;
-
-    console.log("🧬 URL COMPLETA al guardar:", typeof window !== 'undefined' ? window.location.href : 'SSR');
-    console.log("🔄 guardarPresupuesto — modo:", capturedEditId ? "UPDATE" : "INSERT",
-      "| ref:", editIdRef.current,
-      "| query:", getEditIdFromUrl(),
-      "| path:", getEditIdFromPath(),
-      "| storage:", getEditIdFromStorage(),
-      "| hook:", editBudgetId,
-      "| final:", capturedEditId);
-
-    // BLOQUEO ADICIONAL: si ya se guardó exitosamente, no permitir otro
-    if (success) {
-      console.warn("⛔ guardarPresupuesto BLOQUEADO: ya se guardó exitosamente");
-      return;
-    }
-
     try {
-      if (capturedEditId) {
+      if (editIdRef.current || editBudgetId || getEditIdFromUrl()) {
         await handleUpdate();
       } else {
         await handleCreate();
       }
-      // NO navegar con router.push — causa remontaje fantasma y INSERT en $0
     } catch (err: any) {
-      setError(err.message || "Error al guardar el presupuesto.");
+      setError(err.message || "Error al guardar.");
     } finally {
       setGuardando(false);
       savingRef.current = false;
-      console.log("🔓 guardarPresupuesto — bloqueo liberado");
     }
   };
+
+
 
   // =========================================================================
   // FORMATO COP
