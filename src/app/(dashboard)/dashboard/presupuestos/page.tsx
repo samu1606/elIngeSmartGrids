@@ -546,14 +546,13 @@ export default function PresupuestosPage() {
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => {
-                          // DEBUG: confirmar que el ID existe antes de navegar
-                          if (!budget.id) {
-                            console.error('⛔ budget.id es falsy:', budget);
-                            return;
-                          }
                           console.log('🔗 Navegando a editar presupuesto:', budget.id);
-                          sessionStorage.setItem('editingBudgetId', budget.id);
-                          router.push(`/dashboard/presupuestos/nuevo?edit=${budget.id}`);
+                          // Usar window.location.href en vez de router.push para forzar
+                          // una recarga COMPLETA de página. Esto garantiza que el query
+                          // param ?edit= llegue al servidor y useSearchParams funcione.
+                          // router.push (client-side) puede ser interceptado por
+                          // middleware/Suspense/Dokploy y perder los query params.
+                          window.location.href = `/dashboard/presupuestos/nuevo?edit=${budget.id}`;
                         }}
                         className="text-slate-350 hover:text-primary hover:bg-primary/5 p-1.5 rounded-lg transition-colors cursor-pointer"
                         title="Editar presupuesto"
