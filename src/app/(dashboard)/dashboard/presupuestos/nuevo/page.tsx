@@ -610,7 +610,9 @@ function NuevoPresupuestoContent() {
     try {
       if (editBudgetId) {
         // ACTUALIZAR presupuesto existente
-        const { error: budgetError } = await supabase
+        console.log("🚀 PAYLOAD Supabase (UPDATE):", { id: editBudgetId, total: totalConImpuestos, number, clientName, projectName });
+
+        const { error: budgetError, data: updatedData } = await supabase
           .from("budgets")
           .update({
             number: number,
@@ -620,7 +622,10 @@ function NuevoPresupuestoContent() {
             valid_until: validUntil,
             total: totalConImpuestos,
           })
-          .eq("id", editBudgetId);
+          .eq("id", editBudgetId)
+          .select();
+
+        console.log("📥 Respuesta Supabase (UPDATE):", { error: budgetError, data: updatedData });
 
         if (budgetError) throw budgetError;
 
@@ -660,6 +665,8 @@ function NuevoPresupuestoContent() {
         setSuccess("¡Presupuesto actualizado exitosamente!");
       } else {
         // CREAR nuevo presupuesto
+        console.log("🚀 PAYLOAD Supabase (INSERT):", { total: totalConImpuestos, number, clientName, projectName, status: "pendiente" });
+
         const { data: budgetData, error: budgetError } = await supabase
           .from("budgets")
           .insert({
@@ -673,6 +680,8 @@ function NuevoPresupuestoContent() {
           })
           .select()
           .single();
+
+        console.log("📥 Respuesta Supabase (INSERT):", { error: budgetError, data: budgetData });
 
         if (budgetError) throw budgetError;
         if (!budgetData) throw new Error("No se pudo crear el presupuesto.");
