@@ -11,6 +11,8 @@ export interface Insumo {
   descripcion: string;
   unidad: string;
   tipo: TipoInsumo;
+  categoria?: string;
+  descripcion_tecnica?: string;
   precio_unitario: number;
   created_at?: string;
   updated_at?: string;
