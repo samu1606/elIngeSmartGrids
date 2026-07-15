@@ -156,7 +156,7 @@ export default function SaveToProjectButton({
       {/* Botón principal */}
       <button
         onClick={() => setShowModal(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all"
+        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg hover:shadow-blue-500/30 active:scale-[0.97] transition-all duration-200"
       >
         <Save className="h-3.5 w-3.5" />
         {buttonLabel}

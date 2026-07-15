@@ -335,6 +335,12 @@ export default function SeccionTab() {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2 self-start sm:self-center">
+                  <SaveToProjectButton
+                    calculationType="seccion"
+                    title={`Sección de Conductor - ${result.conductor} (${result.seccion_mm2}mm²)`}
+                    inputData={{ potencia_kw: potenciaKw, configuracion, factor_potencia: factorPotencia, material, aislamiento, longitud, caida_tension_max: caidaTensionMax, temperatura_ambiente: tempAmbiente, num_conductores_agrupados: conductoresAgrupados, temperatura_terminales: temperaturaTerminales, carga_continua: cargaContinua }}
+                    resultData={result}
+                  />
                   {result.caida_cumple ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
                       <CheckCircle className="h-3.5 w-3.5" />
@@ -346,12 +352,6 @@ export default function SeccionTab() {
                       <span>Excede Caída V%</span>
                     </span>
                   )}
-                  <SaveToProjectButton
-                    calculationType="seccion"
-                    title={`Sección de Conductor - ${result.conductor} (${result.seccion_mm2}mm²)`}
-                    inputData={{ potencia_kw: potenciaKw, configuracion, factor_potencia: factorPotencia, material, aislamiento, longitud, caida_tension_max: caidaTensionMax, temperatura_ambiente: tempAmbiente, num_conductores_agrupados: conductoresAgrupados, temperatura_terminales: temperaturaTerminales, carga_continua: cargaContinua }}
-                    resultData={result}
-                  />
                 </div>
               </div>
 
