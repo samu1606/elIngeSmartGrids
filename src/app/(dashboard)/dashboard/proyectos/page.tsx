@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { 
+import {
   Search, 
   Grid, 
   List, 
@@ -16,9 +16,9 @@ import {
   TrendingUp,
   Settings,
   FolderDot,
-  Calculator,
-  Clock
+  Calculator
 } from "lucide-react";
+import CalculationsTable from "@/components/proyectos/CalculationsTable";
 
 interface Project {
   id: string;
@@ -76,7 +76,7 @@ export default function ProyectosPage() {
   const [viewType, setViewType] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
-  
+
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -140,12 +140,12 @@ export default function ProyectosPage() {
 
   // Filter projects
   const filteredProjects = projects.filter(p => {
-    const matchesSearch = 
+    const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.client_name.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = statusFilter === "todos" || p.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -224,8 +224,8 @@ export default function ProyectosPage() {
   const totalCount = projects.length;
   const inProgressCount = projects.filter(p => p.status === "en_proceso").length;
   const completedCount = projects.filter(p => p.status === "completado").length;
-  const averageProgress = projects.length > 0 
-    ? Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / projects.length) 
+  const averageProgress = projects.length > 0
+    ? Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / projects.length)
     : 0;
 
   const statusBadges = {
@@ -242,7 +242,7 @@ export default function ProyectosPage() {
 
   return (
     <div className="space-y-8 animate-fade-in relative">
-      
+
       {/* Welcome & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -259,7 +259,7 @@ export default function ProyectosPage() {
           </p>
         </div>
         <div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             type="button"
             className="inline-flex items-center gap-2 rounded-xl bg-primary-green px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-primary-green-dark active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-sm shadow-primary-green/20"
@@ -303,7 +303,7 @@ export default function ProyectosPage() {
 
       {/* Toolbar Filter */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-        
+
         {/* Search */}
         <div className="relative w-full sm:max-w-xs">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -375,7 +375,7 @@ export default function ProyectosPage() {
         /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => (
-            <div 
+            <div
               key={project.id}
               onClick={() => { setSelectedProject(project); fetchSavedCalcs(project.id); }}
               className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 flex flex-col justify-between cursor-pointer"
@@ -396,7 +396,7 @@ export default function ProyectosPage() {
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     onClick={() => handleDeleteProject(project.id)}
                     className="text-slate-300 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-50 transition-all cursor-pointer"
                   >
@@ -410,7 +410,7 @@ export default function ProyectosPage() {
                     <span className="font-mono text-slate-700">{project.progress}%</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full rounded-full transition-all duration-500 ${
                         project.status === "completado" ? "bg-emerald-500" : "bg-primary-green"
                       }`}
@@ -463,7 +463,7 @@ export default function ProyectosPage() {
                     <td className="px-6 py-4 w-48">
                       <div className="flex items-center gap-3">
                         <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               project.status === "completado" ? "bg-emerald-500" : "bg-primary-green"
                             }`}
@@ -476,7 +476,7 @@ export default function ProyectosPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
+                      <button
                         onClick={() => handleDeleteProject(project.id)}
                         className="text-slate-350 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                       >
@@ -495,11 +495,11 @@ export default function ProyectosPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-scale-in">
-            
+
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800 font-display">Crear Nuevo Proyecto</h3>
-              <button 
+              <button
                 onClick={closeModal}
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-650 transition-all cursor-pointer"
               >
@@ -640,77 +640,10 @@ export default function ProyectosPage() {
             <div className="overflow-y-auto px-6 py-4 flex-1">
               <div className="flex items-center gap-2 mb-4">
                 <Calculator className="h-4.5 w-4.5 text-primary-green" />
-                <h4 className="text-sm font-bold text-slate-700">Cálculos Guardados</h4>
+                <h4 className="text-sm font-bold text-slate-700">Cálculos</h4>
                 <span className="text-xs text-slate-400">({savedCalcs.length})</span>
               </div>
-
-              {calcsLoading ? (
-                <div className="text-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary-green mb-3" />
-                  <p className="text-xs text-slate-400">Cargando cálculos...</p>
-                </div>
-              ) : savedCalcs.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <Calculator className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                  <h4 className="font-bold text-slate-400 font-display">Sin cálculos aún</h4>
-                  <p className="text-xs text-slate-350 mt-1 max-w-xs mx-auto">
-                    Ve a la calculadora, realiza un cálculo y usa "Guardar en Proyecto" para vincularlo aquí.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {savedCalcs.map((calc) => {
-                    const TYPE_LABELS: Record<string, string> = {
-    "seccion": "Sección de Conductor",
-    "proteccion": "Protecciones",
-    "motor": "Motores",
-    "iluminacion": "Iluminación",
-    "reactiva": "Compensación Reactiva",
-    "puesta_tierra": "Puesta a Tierra",
-    "cuadro_cargas": "Cuadro de Cargas",
-    "caida_tension": "Caída de Tensión",
-    "cortocircuito": "Cortocircuito",
-    "tuberias": "Tuberías",
-    "transformadores": "Transformadores",
-    "pararrayos": "Pararrayos",
-                    };
-                    return (
-                      <div key={calc.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition-all">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-3xs font-extrabold text-primary mb-1.5">
-                              {TYPE_LABELS[calc.type] || calc.type}
-                            </span>
-                            <h5 className="text-sm font-semibold text-slate-700 truncate">{calc.title}</h5>
-                            <div className="flex items-center gap-1.5 mt-1.5 text-4xs text-slate-400">
-                              <Clock className="h-3 w-3" />
-                              <span>{new Date(calc.created_at).toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const data = JSON.stringify({ inputs: calc.input_data, resultados: calc.result_data }, null, 2);
-                              const blob = new Blob([data], { type: "application/json" });
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `${calc.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 50)}.json`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            }}
-                            className="shrink-0 text-slate-300 hover:text-primary-green p-1.5 rounded-lg hover:bg-white transition-all cursor-pointer"
-                            title="Exportar como JSON"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <CalculationsTable calculations={savedCalcs} loading={calcsLoading} />
             </div>
           </div>
         </div>

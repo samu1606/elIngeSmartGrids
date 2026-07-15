@@ -20,8 +20,8 @@ import {
   ChevronRight,
   FolderDot,
   Calculator,
-  Clock,
 } from "lucide-react";
+import CalculationsTable from "@/components/proyectos/CalculationsTable";
 
 /* ──────────────── TYPES ──────────────── */
 
@@ -974,70 +974,10 @@ export default function ClientesProyectosPage() {
             <div className="overflow-y-auto px-6 py-4 flex-1">
               <div className="flex items-center gap-2 mb-4">
                 <Calculator className="h-4.5 w-4.5 text-primary-green" />
-                <h4 className="text-sm font-bold text-slate-700">Cálculos Guardados</h4>
+                <h4 className="text-sm font-bold text-slate-700">Cálculos</h4>
                 <span className="text-xs text-slate-400">({savedCalcs.length})</span>
               </div>
-              {calcsLoading ? (
-                <div className="text-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary-green mb-3" />
-                  <p className="text-xs text-slate-400">Cargando cálculos...</p>
-                </div>
-              ) : savedCalcs.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <Calculator className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                  <h4 className="font-bold text-slate-400 font-display">Sin cálculos aún</h4>
-                  <p className="text-xs text-slate-350 mt-1 max-w-xs mx-auto">Ve a la calculadora, realiza un cálculo y usa "Guardar en Proyecto" para vincularlo aquí.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {savedCalcs.map((calc) => {
-                    const TYPE_LABELS: Record<string, string> = {
-                      "seccion": "Sección de Conductor",
-                      "proteccion": "Protecciones",
-                      "motor": "Motores",
-                      "iluminacion": "Iluminación",
-                      "reactiva": "Compensación Reactiva",
-                      "puesta_tierra": "Puesta a Tierra",
-                      "cuadro_cargas": "Cuadro de Cargas",
-                      "caida_tension": "Caída de Tensión",
-                      "cortocircuito": "Cortocircuito",
-                      "tuberias": "Tuberías",
-                      "transformadores": "Transformadores",
-                      "pararrayos": "Pararrayos",
-                    };
-                    return (
-                      <div key={calc.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition-all">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-3xs font-extrabold text-primary mb-1.5">
-                              {TYPE_LABELS[calc.type] || calc.type}
-                            </span>
-                            <h5 className="text-sm font-semibold text-slate-700 truncate">{calc.title}</h5>
-                            <div className="flex items-center gap-1.5 mt-1.5 text-4xs text-slate-400">
-                              <Clock className="h-3 w-3" />
-                              <span>{new Date(calc.created_at).toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <button onClick={() => {
-                            const data = JSON.stringify({ inputs: calc.input_data, resultados: calc.result_data }, null, 2);
-                            const blob = new Blob([data], { type: "application/json" });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `${calc.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 50)}.json`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          }} className="shrink-0 text-slate-300 hover:text-primary-green p-1.5 rounded-lg hover:bg-white transition-all cursor-pointer" title="Exportar como JSON">
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <CalculationsTable calculations={savedCalcs} loading={calcsLoading} />
             </div>
           </div>
         </div>
