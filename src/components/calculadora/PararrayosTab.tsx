@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, CloudLightning } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface Resultado {
   nivel_proteccion: string;
@@ -125,7 +126,16 @@ export default function PararrayosTab() {
                 <span className="font-bold">Área cubierta por unidad: </span>{result.area_cobertura_uno_m2.toLocaleString()} m² · <span className="font-bold">Descargas esperadas: </span>{result.descargas_esperadas_por_anio}/año
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="pararrayos"
+                title={`Pararrayos - Nivel ${result.nivel_proteccion}`}
+                inputData={{ tipoEdificio, altura, area, nivelCeraunico, tipoProteccion }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" /><h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Memoria Justificativa</h3>
               </div>

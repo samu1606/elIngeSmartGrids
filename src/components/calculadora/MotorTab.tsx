@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, Cpu } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface MotorResult {
   conductor: string;
@@ -265,7 +266,16 @@ export default function MotorTab() {
         {!loading && result ? (
           <>
             {/* Main Result Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="motor"
+                title={`Motor - Conductor ${result.conductor} (${result.seccion_mm2}mm²)`}
+                inputData={{ potenciaHp, voltajeMotor, tipoArranque, fpMotor, eficiencia, numMotores, longitudMotor }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 gap-2">
                 <div>
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Conductor Sugerido</span>

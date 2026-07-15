@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, Battery } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface Resultado {
   kva_seleccionado: number;
@@ -144,7 +145,16 @@ export default function TransformadoresTab() {
                 </div>
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="transformadores"
+                title={`Transformador - ${result.potencia_kva}kVA`}
+                inputData={{ cargaKw, tipoTransformador, voltajePrimario, voltajeSecundario, enfriamiento }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" /><h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Memoria Justificativa</h3>
               </div>

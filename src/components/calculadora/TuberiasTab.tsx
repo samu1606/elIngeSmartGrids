@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, Plus, Trash2, Ruler } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface ConductorInput {
   calibre: string;
@@ -151,7 +152,16 @@ export default function TuberiasTab() {
                 <span className="font-bold">Máximo de llenado permitido: </span>{result.pct_maximo_llenado}% ({conductores.reduce((s, c) => s + c.num_conductores, 0)} conductores)
               </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="tuberias"
+                title={`Tuberías - ${result.diametro}`}
+                inputData={{ conductores, tipoTuberia, factorRelleno }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" /><h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Memoria Justificativa</h3>
               </div>

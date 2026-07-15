@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, DollarSign, TrendingDown } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface ReactivaResult {
   qc: number;
@@ -294,7 +295,16 @@ export default function ReactivaTab() {
             </div>
 
             {/* Justification & Reference */}
-            <div className="bg-white text-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="reactiva"
+                title={`Compensación Reactiva - ${result.qc} kVAR`}
+                inputData={{ potenciaKw, fpActual, fpDeseado, voltajeBanco, tipoInstalacion }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white text-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" />
                 <h3 className="text-sm font-bold text-slate-800 font-display uppercase tracking-wider">Memoria Justificativa</h3>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface PuestaTierraResult {
   r_total: number;
@@ -261,7 +262,16 @@ export default function PuestaTierraTab() {
             </div>
 
             {/* Justification & Reference */}
-            <div className="bg-white text-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="puesta_tierra"
+                title={`Puesta a Tierra - R=${result.r_total}Ω`}
+                inputData={{ resistividad, longitudElectrodo, diametroElectrodo, profundidad, tipoSuelo, tipoElectrodo }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white text-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" />
                 <h3 className="text-sm font-bold text-slate-800 font-display uppercase tracking-wider">Memoria Justificativa</h3>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface SeccionResult {
   conductor: string;
@@ -333,7 +334,7 @@ export default function SeccionTab() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 self-start sm:self-center">
+                <div className="flex flex-col items-end gap-2 self-start sm:self-center">
                   {result.caida_cumple ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
                       <CheckCircle className="h-3.5 w-3.5" />
@@ -345,6 +346,12 @@ export default function SeccionTab() {
                       <span>Excede Caída V%</span>
                     </span>
                   )}
+                  <SaveToProjectButton
+                    calculationType="seccion"
+                    title={`Sección de Conductor - ${result.conductor} (${result.seccion_mm2}mm²)`}
+                    inputData={{ potencia_kw: potenciaKw, configuracion, factor_potencia: factorPotencia, material, aislamiento, longitud, caida_tension_max: caidaTensionMax, temperatura_ambiente: tempAmbiente, num_conductores_agrupados: conductoresAgrupados, temperatura_terminales: temperaturaTerminales, carga_continua: cargaContinua }}
+                    resultData={result}
+                  />
                 </div>
               </div>
 

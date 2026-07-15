@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getApiUrl } from "@/lib/api";
 import { Zap, AlertTriangle, CheckCircle, Info, RefreshCw, Plus, Trash2, Gauge, Boxes } from "lucide-react";
+import SaveToProjectButton from "@/components/calculadora/SaveToProjectButton";
 
 interface Carga {
   nombre: string;
@@ -451,7 +452,16 @@ export default function CuadroCargasTab() {
               </div>
               <pre className="text-xs text-slate-600 bg-slate-50 p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(result, null, 2)}</pre>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="mb-4 flex justify-end">
+              <SaveToProjectButton
+                calculationType="cuadro_cargas"
+                title={`Cuadro de Cargas - ${result.carga_total_kva}kVA`}
+                inputData={{ cargas }}
+                resultData={result}
+              />
+            </div>
+
+<div className="bg-white p-6 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Info className="h-4.5 w-4.5 text-primary" />
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Memoria Justificativa</h3>
