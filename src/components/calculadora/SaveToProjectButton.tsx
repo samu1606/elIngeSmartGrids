@@ -16,9 +16,9 @@ interface SaveToProjectButtonProps {
   /** Título descriptivo del cálculo (ej: "Sección de Conductor - 8 AWG") */
   title: string;
   /** Datos de entrada del cálculo */
-  inputData: Record<string, unknown>;
+  inputData: object;
   /** Resultados del cálculo */
-  resultData: Record<string, unknown>;
+  resultData: object;
   /** Texto del botón (opcional) */
   buttonLabel?: string;
 }
