@@ -266,7 +266,7 @@ export default function PuestaTierraTab() {
               <SaveToProjectButton
                 calculationType="puesta_tierra"
                 title={`Puesta a Tierra - R=${result.r_total}Ω`}
-                inputData={{ resistividad, longitudElectrodo, diametroElectrodo, profundidad, tipoSuelo, tipoElectrodo }}
+                inputData={{ resistividad, longitudElectrodo, diametroElectrodo, tension, requerimiento }}
                 resultData={result}
               />
             </div>

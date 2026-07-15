@@ -130,7 +130,7 @@ export default function PararrayosTab() {
               <SaveToProjectButton
                 calculationType="pararrayos"
                 title={`Pararrayos - Nivel ${result.nivel_proteccion}`}
-                inputData={{ tipoEdificio, altura, area, nivelCeraunico, tipoProteccion }}
+                inputData={{ tipoEstructura, altura, area, nivelProteccion }}
                 resultData={result}
               />
             </div>

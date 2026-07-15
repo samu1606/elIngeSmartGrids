@@ -142,8 +142,8 @@ export default function CortocircuitoTab() {
                         <div className="mb-4 flex justify-end">
               <SaveToProjectButton
                 calculationType="cortocircuito"
-                title={`Cortocircuito - Icc=${result.icc}A`}
-                inputData={{ voltajeNominal, potenciaCorto, longitudCircuito, calibreConductor, material, tipoSistema }}
+                title={`Cortocircuito - Icc=${result.icc_punto_carga}A`}
+                inputData={{ potenciaTrafo, impedanciaZ, longitudAlim, calibreAlim, material, sistema, tension }}
                 resultData={result}
               />
             </div>

@@ -182,8 +182,8 @@ export default function CaidaTensionTab() {
                         <div className="mb-4 flex justify-end">
               <SaveToProjectButton
                 calculationType="caida_tension"
-                title={`Caída de Tensión - ${result.caida_max}% máx`}
-                inputData={{ conductores, longitud, configuracion }}
+                title={`Caída de Tensión - ${result.caida_total_pct}%`}
+                inputData={{ tramos, tensionNominal, sistema }}
                 resultData={result}
               />
             </div>

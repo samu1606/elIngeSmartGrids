@@ -237,7 +237,7 @@ export default function ProteccionTab() {
               <SaveToProjectButton
                 calculationType="proteccion"
                 title={`Protecciones - Breaker ${result.breaker}A`}
-                inputData={{ voltajeOperacion, corrienteNominal, tipoCarga, numPolos, tipoSistema }}
+                inputData={{ corrienteCarga, tipoCarga, tension, numPolos }}
                 resultData={result}
               />
             </div>

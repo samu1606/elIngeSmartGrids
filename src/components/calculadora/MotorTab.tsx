@@ -270,7 +270,7 @@ export default function MotorTab() {
               <SaveToProjectButton
                 calculationType="motor"
                 title={`Motor - Conductor ${result.conductor} (${result.seccion_mm2}mm²)`}
-                inputData={{ potenciaHp, voltajeMotor, tipoArranque, fpMotor, eficiencia, numMotores, longitudMotor }}
+                inputData={{ potenciaHp, tension, eficiencia, fp, sistema, tipoArranque, letraCodigo }}
                 resultData={result}
               />
             </div>

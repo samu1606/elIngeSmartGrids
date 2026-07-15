@@ -455,7 +455,7 @@ export default function CuadroCargasTab() {
                         <div className="mb-4 flex justify-end">
               <SaveToProjectButton
                 calculationType="cuadro_cargas"
-                title={`Cuadro de Cargas - ${result.carga_total_kva}kVA`}
+                title={`Cuadro de Cargas - Breaker ${result.breaker_principal}A`}
                 inputData={{ cargas }}
                 resultData={result}
               />

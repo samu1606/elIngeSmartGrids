@@ -299,7 +299,7 @@ export default function IluminacionTab() {
               <SaveToProjectButton
                 calculationType="iluminacion"
                 title={`Iluminación - ${result.luminarias} luminarias`}
-                inputData={{ tipoArea, largo, ancho, alturaMontaje, nivelLux, tipoLuminaria, factorMantenimiento }}
+                inputData={{ largo, ancho, luxObjetivo, lumensLampara, cu, llf, potenciaLampara, tipoArea }}
                 resultData={result}
               />
             </div>

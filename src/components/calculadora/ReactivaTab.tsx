@@ -299,7 +299,7 @@ export default function ReactivaTab() {
               <SaveToProjectButton
                 calculationType="reactiva"
                 title={`Compensación Reactiva - ${result.qc} kVAR`}
-                inputData={{ potenciaKw, fpActual, fpDeseado, voltajeBanco, tipoInstalacion }}
+                inputData={{ potenciaKw, fpActual, fpObjetivo, tension, frecuencia, costoKwh }}
                 resultData={result}
               />
             </div>

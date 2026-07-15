@@ -155,8 +155,8 @@ export default function TuberiasTab() {
                         <div className="mb-4 flex justify-end">
               <SaveToProjectButton
                 calculationType="tuberias"
-                title={`Tuberías - ${result.diametro}`}
-                inputData={{ conductores, tipoTuberia, factorRelleno }}
+                title={`Tuberías - ${result.diametro_seleccionado}`}
+                inputData={{ conductores, tipoTubo }}
                 resultData={result}
               />
             </div>

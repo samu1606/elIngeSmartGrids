@@ -148,8 +148,8 @@ export default function TransformadoresTab() {
                         <div className="mb-4 flex justify-end">
               <SaveToProjectButton
                 calculationType="transformadores"
-                title={`Transformador - ${result.potencia_kva}kVA`}
-                inputData={{ cargaKw, tipoTransformador, voltajePrimario, voltajeSecundario, enfriamiento }}
+                title={`Transformador - ${result.kva_seleccionado}kVA`}
+                inputData={{ potenciaTotal, factorPotencia, tensionPrimaria, tensionSecundaria, tipo, sistema }}
                 resultData={result}
               />
             </div>
