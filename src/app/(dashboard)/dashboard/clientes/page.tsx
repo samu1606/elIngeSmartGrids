@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronRight,
   FolderDot,
+  Calculator,
+  Clock,
 } from "lucide-react";
 
 /* ──────────────── TYPES ──────────────── */
@@ -41,6 +43,15 @@ interface Project {
   status: "en_proceso" | "completado" | "cotizado";
   progress: number;
   created_at?: string;
+}
+
+interface SavedCalculation {
+  id: string;
+  type: string;
+  title: string;
+  input_data: Record<string, unknown>;
+  result_data: Record<string, unknown>;
+  created_at: string;
 }
 
 /* ──────────────── MOCK DATA ──────────────── */
@@ -172,6 +183,9 @@ export default function ClientesProyectosPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [savedCalcs, setSavedCalcs] = useState<SavedCalculation[]>([]);
+  const [calcsLoading, setCalcsLoading] = useState(false);
 
   const supabase = createClient();
 
@@ -206,6 +220,24 @@ export default function ClientesProyectosPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const fetchSavedCalcs = async (projectId: string) => {
+    setCalcsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("saved_calculations")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setSavedCalcs(data || []);
+    } catch (err: any) {
+      console.warn("Error fetching saved calcs:", err.message);
+      setSavedCalcs([]);
+    } finally {
+      setCalcsLoading(false);
+    }
+  };
 
   /* ---------- derived ---------- */
 
@@ -663,7 +695,7 @@ export default function ClientesProyectosPage() {
                                           </thead>
                                           <tbody className="divide-y divide-slate-50">
                                             {clientProjects.map((proj) => (
-                                              <tr key={proj.id} className="hover:bg-slate-50/50 transition-colors">
+                                              <tr key={proj.id} onClick={() => { setSelectedProject(proj); fetchSavedCalcs(proj.id); }} className="hover:bg-slate-50/50 hover:bg-primary/5 transition-colors cursor-pointer">
                                                 <td className="px-4 py-3 font-semibold text-slate-700">
                                                   {proj.name}
                                                 </td>
@@ -921,6 +953,92 @@ export default function ClientesProyectosPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PROJECT DETAIL MODAL */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) { setSelectedProject(null); setSavedCalcs([]); }}}>
+          <div className="w-full max-w-2xl max-h-[85vh] rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 font-display">{selectedProject.name}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{selectedProject.client_name} · {selectedProject.created_at ? new Date(selectedProject.created_at).toLocaleDateString() : "Reciente"}</p>
+              </div>
+              <button onClick={() => { setSelectedProject(null); setSavedCalcs([]); }} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-4 flex-1">
+              <div className="flex items-center gap-2 mb-4">
+                <Calculator className="h-4.5 w-4.5 text-primary-green" />
+                <h4 className="text-sm font-bold text-slate-700">Cálculos Guardados</h4>
+                <span className="text-xs text-slate-400">({savedCalcs.length})</span>
+              </div>
+              {calcsLoading ? (
+                <div className="text-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary-green mb-3" />
+                  <p className="text-xs text-slate-400">Cargando cálculos...</p>
+                </div>
+              ) : savedCalcs.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Calculator className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                  <h4 className="font-bold text-slate-400 font-display">Sin cálculos aún</h4>
+                  <p className="text-xs text-slate-350 mt-1 max-w-xs mx-auto">Ve a la calculadora, realiza un cálculo y usa "Guardar en Proyecto" para vincularlo aquí.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedCalcs.map((calc) => {
+                    const TYPE_LABELS: Record<string, string> = {
+                      "seccion": "Sección de Conductor",
+                      "proteccion": "Protecciones",
+                      "motor": "Motores",
+                      "iluminacion": "Iluminación",
+                      "reactiva": "Compensación Reactiva",
+                      "puesta_tierra": "Puesta a Tierra",
+                      "cuadro_cargas": "Cuadro de Cargas",
+                      "caida_tension": "Caída de Tensión",
+                      "cortocircuito": "Cortocircuito",
+                      "tuberias": "Tuberías",
+                      "transformadores": "Transformadores",
+                      "pararrayos": "Pararrayos",
+                    };
+                    return (
+                      <div key={calc.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 hover:border-slate-300 transition-all">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-3xs font-extrabold text-primary mb-1.5">
+                              {TYPE_LABELS[calc.type] || calc.type}
+                            </span>
+                            <h5 className="text-sm font-semibold text-slate-700 truncate">{calc.title}</h5>
+                            <div className="flex items-center gap-1.5 mt-1.5 text-4xs text-slate-400">
+                              <Clock className="h-3 w-3" />
+                              <span>{new Date(calc.created_at).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <button onClick={() => {
+                            const data = JSON.stringify({ inputs: calc.input_data, resultados: calc.result_data }, null, 2);
+                            const blob = new Blob([data], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${calc.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 50)}.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }} className="shrink-0 text-slate-300 hover:text-primary-green p-1.5 rounded-lg hover:bg-white transition-all cursor-pointer" title="Exportar como JSON">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
