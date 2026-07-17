@@ -27,7 +27,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 // ── Colores corporativos ──
-const BRAND = {
+type RGB = [number, number, number];
+const BRAND: Record<string, RGB> = {
   primary: [24, 46, 88],       // #182E58 azul oscuro
   accent: [238, 160, 24],      // #EEA018 dorado
   light: [241, 245, 249],      // #F1F5F9 gris claro
